@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   Zap, Plus, Trash2, Loader2, Receipt, Activity, Clock, CheckCircle2,
+  Camera, AlertTriangle, CheckCircle,
 } from "lucide-react";
 import type { ReadingWithUnit, EnergyKPIs, LastReadingMap, Unit } from "./types";
 
@@ -63,10 +64,64 @@ function KPICard({ label, value, sub, icon: Icon, accent }: {
   );
 }
 
+// ─── Image preprocessing (grayscale + threshold for LCD/LED meter displays) ──
+async function preprocessMeterImage(file: File): Promise<HTMLCanvasElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 1200;
+      const scale = img.width > maxW ? maxW / img.width : 1;
+      const canvas = document.createElement("canvas");
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // Convert to grayscale → binary threshold (improves digit recognition)
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imageData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        // Stretch contrast, then threshold
+        const enhanced = Math.min(255, Math.max(0, (gray - 128) * 1.8 + 128));
+        d[i] = d[i + 1] = d[i + 2] = enhanced > 110 ? 255 : 0;
+      }
+      ctx.putImageData(imageData, 0, 0);
+      URL.revokeObjectURL(url);
+      resolve(canvas);
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+// ─── OCR confidence badge ─────────────────────────────────────────────────────
+function ConfidenceBadge({ confidence }: { confidence: "high" | "medium" | "low" }) {
+  if (confidence === "high")
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-[#10B981] bg-[#10B981]/10 px-2 py-0.5 rounded-full">
+        <CheckCircle className="w-3 h-3" /> Alta confianza
+      </span>
+    );
+  if (confidence === "medium")
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-[#F59E0B] bg-[#F59E0B]/10 px-2 py-0.5 rounded-full">
+        <AlertTriangle className="w-3 h-3" /> Confianza media — verifique
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">
+      <AlertTriangle className="w-3 h-3" /> Baja confianza — ingrese manualmente
+    </span>
+  );
+}
+
 // ─── NuevaLecturaSheet ────────────────────────────────────────────────────────
-function NuevaLecturaSheet({ open, onClose, units, lastReadings, formAction, state, isPending }: {
+function NuevaLecturaSheet({ open, onClose, slug, units, lastReadings, formAction, state, isPending }: {
   open: boolean;
   onClose: () => void;
+  slug: string;
   units: Unit[];
   lastReadings: LastReadingMap;
   formAction: (p: FormData) => void;
@@ -76,12 +131,19 @@ function NuevaLecturaSheet({ open, onClose, units, lastReadings, formAction, sta
   const [selectedUnit, setSelectedUnit] = useState("");
   const [prevReading,  setPrevReading]  = useState("0");
   const [currReading,  setCurrReading]  = useState("");
-  const [rate,         setRate]         = useState("800"); // tarifa por defecto COP/kWh
+  const [rate,         setRate]         = useState("800");
+
+  // OCR state
+  const [ocrLoading,     setOcrLoading]     = useState(false);
+  const [ocrConfidence,  setOcrConfidence]  = useState<"high" | "medium" | "low" | null>(null);
+  const [ocrError,       setOcrError]       = useState<string | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Reset al cerrar
   useEffect(() => {
     if (!open) {
       setSelectedUnit(""); setPrevReading("0"); setCurrReading(""); setRate("800");
+      setOcrLoading(false); setOcrConfidence(null); setOcrError(null);
     }
   }, [open]);
 
@@ -90,6 +152,51 @@ function NuevaLecturaSheet({ open, onClose, units, lastReadings, formAction, sta
     setSelectedUnit(unitId);
     const last = lastReadings[unitId];
     setPrevReading(last !== undefined ? String(last) : "0");
+  }
+
+  // Handle photo capture → client-side OCR with Tesseract.js (free, no API key)
+  async function handlePhotoCapture(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setOcrLoading(true);
+    setOcrConfidence(null);
+    setOcrError(null);
+
+    try {
+      const processedCanvas = await preprocessMeterImage(file);
+
+      // Dynamic import keeps Tesseract out of the initial bundle
+      const { createWorker, PSM } = await import("tesseract.js");
+      const worker = await createWorker("eng", 1, { logger: () => {} });
+
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+        tessedit_char_whitelist: "0123456789.",
+      });
+
+      const { data } = await worker.recognize(processedCanvas);
+      await worker.terminate();
+
+      // Extract first valid number from OCR text
+      const numMatch = data.text.replace(/\s+/g, "").match(/\d+\.?\d*/);
+      const reading  = numMatch ? parseFloat(numMatch[0]) : NaN;
+
+      if (!isNaN(reading) && reading >= 0) {
+        setCurrReading(String(reading));
+        const conf: "high" | "medium" | "low" =
+          data.confidence > 75 ? "high" : data.confidence > 45 ? "medium" : "low";
+        setOcrConfidence(conf);
+      } else {
+        setOcrError("No se pudo leer el medidor. Ingresa el valor manualmente.");
+        setOcrConfidence("low");
+      }
+    } catch {
+      setOcrError("Error al analizar la imagen. Intenta de nuevo.");
+    } finally {
+      setOcrLoading(false);
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
+    }
   }
 
   // Calcular consumo y monto estimado en vivo
@@ -113,7 +220,7 @@ function NuevaLecturaSheet({ open, onClose, units, lastReadings, formAction, sta
           <SheetHeader>
             <SheetTitle className="text-foreground">Nueva Lectura</SheetTitle>
             <SheetDescription className="text-muted-foreground">
-              Registra la lectura del medidor de energía.
+              Fotografía el medidor o ingresa la lectura manualmente.
             </SheetDescription>
           </SheetHeader>
         </div>
@@ -125,6 +232,56 @@ function NuevaLecturaSheet({ open, onClose, units, lastReadings, formAction, sta
                 {state.error}
               </div>
             )}
+
+            {/* Botón de cámara */}
+            <div className="bg-secondary/30 border border-border rounded-xl p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5" /> Lectura automática por foto
+              </p>
+
+              {/* Hidden camera input — capture="environment" opens rear camera on mobile */}
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handlePhotoCapture}
+              />
+
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={ocrLoading}
+                className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-primary/40 text-primary bg-primary/5 hover:bg-primary/10 disabled:opacity-50 py-3 rounded-lg text-sm font-medium transition-colors"
+              >
+                {ocrLoading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" />Analizando medidor…</>
+                ) : (
+                  <><Camera className="w-4 h-4" />Fotografiar medidor</>
+                )}
+              </button>
+
+              {/* OCR result feedback */}
+              {ocrConfidence && !ocrLoading && (
+                <div className="flex items-center justify-between">
+                  <ConfidenceBadge confidence={ocrConfidence} />
+                  {ocrConfidence !== "low" && currReading && (
+                    <span className="text-sm font-bold text-foreground tabular-nums">
+                      {currReading} kWh
+                    </span>
+                  )}
+                </div>
+              )}
+              {ocrError && !ocrLoading && (
+                <p className="text-xs text-destructive">{ocrError}</p>
+              )}
+              {!ocrConfidence && !ocrLoading && !ocrError && (
+                <p className="text-xs text-muted-foreground">
+                  En Android: abre directamente la cámara trasera.
+                </p>
+              )}
+            </div>
 
             <Field label="Unidad *" htmlFor="unitId">
               <select
@@ -157,12 +314,13 @@ function NuevaLecturaSheet({ open, onClose, units, lastReadings, formAction, sta
                   onChange={(e) => setPrevReading(e.target.value)}
                 />
               </Field>
-              <Field label="Lectura actual (kWh) *" htmlFor="currentReading">
+              <Field label="Lectura actual (kWh) *" htmlFor="currentReading"
+              >
                 <input
                   id="currentReading" name="currentReading" type="number"
                   min="0" step="0.01" required className={inputCls}
                   value={currReading}
-                  onChange={(e) => setCurrReading(e.target.value)}
+                  onChange={(e) => { setCurrReading(e.target.value); setOcrConfidence(null); }}
                   placeholder="1250.50"
                 />
               </Field>
@@ -226,7 +384,7 @@ function NuevaLecturaSheet({ open, onClose, units, lastReadings, formAction, sta
               Cancelar
             </button>
             <button
-              type="submit" disabled={isPending}
+              type="submit" disabled={isPending || ocrLoading}
               className="flex-1 flex items-center justify-center gap-2 bg-primary text-white py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               {isPending
@@ -488,6 +646,7 @@ export default function EnergiaClient({
       <NuevaLecturaSheet
         open={openNuevaLectura}
         onClose={() => setOpenNuevaLectura(false)}
+        slug={slug}
         units={units}
         lastReadings={lastReadings}
         formAction={formAction}
