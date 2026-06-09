@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/api/webhooks/**": {
+      "maxDuration": 60
+    },
+    "src/app/api/export/**": {
+      "maxDuration": 30
+    }
+  }
+}
