@@ -64,38 +64,6 @@ function KPICard({ label, value, sub, icon: Icon, accent }: {
   );
 }
 
-// ─── Image preprocessing (grayscale + threshold for LCD/LED meter displays) ──
-async function preprocessMeterImage(file: File): Promise<HTMLCanvasElement> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const maxW = 1200;
-      const scale = img.width > maxW ? maxW / img.width : 1;
-      const canvas = document.createElement("canvas");
-      canvas.width  = Math.round(img.width  * scale);
-      canvas.height = Math.round(img.height * scale);
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      // Convert to grayscale → binary threshold (improves digit recognition)
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const d = imageData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        // Stretch contrast, then threshold
-        const enhanced = Math.min(255, Math.max(0, (gray - 128) * 1.8 + 128));
-        d[i] = d[i + 1] = d[i + 2] = enhanced > 110 ? 255 : 0;
-      }
-      ctx.putImageData(imageData, 0, 0);
-      URL.revokeObjectURL(url);
-      resolve(canvas);
-    };
-    img.onerror = reject;
-    img.src = url;
-  });
-}
-
 // ─── OCR confidence badge ─────────────────────────────────────────────────────
 function ConfidenceBadge({ confidence }: { confidence: "high" | "medium" | "low" }) {
   if (confidence === "high")
@@ -154,7 +122,7 @@ function NuevaLecturaSheet({ open, onClose, slug, units, lastReadings, formActio
     setPrevReading(last !== undefined ? String(last) : "0");
   }
 
-  // Handle photo capture → client-side OCR with Tesseract.js (free, no API key)
+  // Handle photo capture → Claude Haiku vision OCR
   async function handlePhotoCapture(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -164,29 +132,18 @@ function NuevaLecturaSheet({ open, onClose, slug, units, lastReadings, formActio
     setOcrError(null);
 
     try {
-      const processedCanvas = await preprocessMeterImage(file);
+      const form = new FormData();
+      form.append("image", file);
 
-      // Dynamic import keeps Tesseract out of the initial bundle
-      const { createWorker, PSM } = await import("tesseract.js");
-      const worker = await createWorker("eng", 1, { logger: () => {} });
+      const res = await fetch("/api/energy/ocr", { method: "POST", body: form });
+      if (!res.ok) throw new Error("Error al procesar la imagen.");
 
-      await worker.setParameters({
-        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-        tessedit_char_whitelist: "0123456789.",
-      });
+      const data: { reading: number | null; confidence: "high" | "medium" | "low" } =
+        await res.json();
 
-      const { data } = await worker.recognize(processedCanvas);
-      await worker.terminate();
-
-      // Extract first valid number from OCR text
-      const numMatch = data.text.replace(/\s+/g, "").match(/\d+\.?\d*/);
-      const reading  = numMatch ? parseFloat(numMatch[0]) : NaN;
-
-      if (!isNaN(reading) && reading >= 0) {
-        setCurrReading(String(reading));
-        const conf: "high" | "medium" | "low" =
-          data.confidence > 75 ? "high" : data.confidence > 45 ? "medium" : "low";
-        setOcrConfidence(conf);
+      if (data.reading !== null && !isNaN(data.reading)) {
+        setCurrReading(String(data.reading));
+        setOcrConfidence(data.confidence);
       } else {
         setOcrError("No se pudo leer el medidor. Ingresa el valor manualmente.");
         setOcrConfidence("low");
