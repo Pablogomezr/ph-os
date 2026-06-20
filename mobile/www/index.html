@@ -2,9 +2,56 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PH OS</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #09090B;
+      color: #FAFAFA;
+      font-family: -apple-system, system-ui, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .wrap { text-align: center; padding: 24px; }
+    .logo { font-weight: 800; font-size: 28px; margin-bottom: 24px; }
+    .logo span { color: #6366F1; }
+    button {
+      background: #6366F1;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+  </style>
 </head>
 <body>
-  <!-- Placeholder: Capacitor carga el sitio remoto definido en capacitor.config.ts (server.url) -->
+  <div class="wrap">
+    <div class="logo">PH<span>OS</span></div>
+    <button id="open">Abrir PH OS</button>
+  </div>
+
+  <script>
+    // Sin bundler: se accede al plugin vía el runtime global que Capacitor
+    // inyecta en cada página servida desde el WebView nativo.
+    const APP_URL = 'https://ph-os-build.vercel.app';
+
+    function openApp() {
+      const Browser = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+      if (Browser) {
+        Browser.open({ url: APP_URL, presentationStyle: 'fullscreen' });
+      } else {
+        window.location.href = APP_URL;
+      }
+    }
+
+    document.getElementById('open').addEventListener('click', openApp);
+    // Abrir automáticamente al iniciar la app.
+    document.addEventListener('DOMContentLoaded', openApp);
+  </script>
 </body>
 </html>
