@@ -38,7 +38,25 @@ jobs:
         run: chmod +x android/gradlew
 
       - name: Sync Capacitor
-        run: npx cap sync android
+        id: sync
+        run: |
+          set +e
+          npx cap sync android > sync.log 2>&1
+          echo "sync_exit=$?" >> "$GITHUB_OUTPUT"
+          cat sync.log
+
+      - name: Publicar log de diagnóstico si falló el sync
+        if: steps.sync.outputs.sync_exit != '0'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: debug-log
+          name: "Debug log (build fallido)"
+          files: mobile/sync.log
+          prerelease: true
+
+      - name: Detener si el sync falló
+        if: steps.sync.outputs.sync_exit != '0'
+        run: exit 1
 
       - name: Build debug APK
         working-directory: mobile/android
