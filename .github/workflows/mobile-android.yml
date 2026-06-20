@@ -6,6 +6,10 @@ on:
     branches: [master]
     paths:
       - "mobile/**"
+      - ".github/workflows/mobile-android.yml"
+
+permissions:
+  contents: write
 
 jobs:
   build-android:
@@ -40,8 +44,27 @@ jobs:
         working-directory: mobile/android
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Upload APK (artifact de build)
         uses: actions/upload-artifact@v4
         with:
           name: phos-debug-apk
           path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Rename APK
+        run: cp mobile/android/app/build/outputs/apk/debug/app-debug.apk mobile/PHOS.apk
+        working-directory: .
+
+      - name: Publish / actualizar release público "latest-android"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-android
+          name: PH OS — Android (último build)
+          body: |
+            APK de la app Propiedad Horizontal OS para Android.
+            Generado automáticamente desde el último push a `mobile/`.
+
+            **Cómo instalar:** descarga `PHOS.apk` desde un navegador en el
+            celular Android, ábrelo y permite "instalar apps de orígenes
+            desconocidos" si Android lo solicita.
+          files: mobile/PHOS.apk
+          prerelease: true
