@@ -1,0 +1,18 @@
+{
+  "name": "phos-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Wrapper nativo (Capacitor) de Propiedad Horizontal OS para Android e iOS",
+  "scripts": {
+    "sync": "npx cap sync",
+    "open:android": "npx cap open android",
+    "open:ios": "npx cap open ios",
+    "copy": "npx cap copy"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1"
+  }
+}

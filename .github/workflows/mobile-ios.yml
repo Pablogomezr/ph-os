@@ -1,0 +1,53 @@
+name: Mobile - iOS Build (simulator, sin firma)
+
+# Esto compila la app para validar que el proyecto iOS está sano (corre en
+# simulador, sin certificados). Para generar un .ipa instalable en un
+# dispositivo real o subirlo a TestFlight se necesita:
+#   1. Cuenta Apple Developer (US$99/año)
+#   2. Certificado de distribución + perfil de aprovisionamiento
+#   3. Agregar esos archivos como secrets de este repo y un paso de
+#      `xcodebuild -exportArchive` con un exportOptions.plist
+# Sin eso, Apple no permite producir un .ipa firmado — es una restricción de
+# la plataforma, no de este pipeline.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "mobile/**"
+
+jobs:
+  build-ios-simulator:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Capacitor deps
+        run: npm install
+
+      - name: Sync Capacitor
+        run: npx cap sync ios
+
+      - name: Install CocoaPods
+        working-directory: mobile/ios/App
+        run: pod install
+
+      - name: Build for simulator (sin firma)
+        working-directory: mobile/ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
