@@ -77,7 +77,7 @@ export default async function ResidentLayout({
       : [];
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen bg-background overflow-hidden">
       <ResidentSidebar
         slug={slug}
         buildingName={building.name}

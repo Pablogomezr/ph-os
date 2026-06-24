@@ -3,7 +3,7 @@ import { getSuperadminDb, superadminSchema } from "@/lib/db/superadmin";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
-export type UserRole = "superadmin" | "admin" | "resident" | "technician";
+export type UserRole = "superadmin" | "admin" | "resident" | "tenant" | "technician";
 
 /**
  * Obtiene el edificio por slug desde la DB central.
@@ -56,7 +56,7 @@ export async function requireRole(
   const role = await getUserRole(buildingSlug);
   const allowedRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
 
-  const roleHierarchy: UserRole[] = ["superadmin", "admin", "technician", "resident"];
+  const roleHierarchy: UserRole[] = ["superadmin", "admin", "technician", "resident", "tenant"];
   const userLevel = roleHierarchy.indexOf(role);
   const hasAccess = allowedRoles.some((r) => roleHierarchy.indexOf(r) >= userLevel);
 
