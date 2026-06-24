@@ -4,20 +4,26 @@ import {
   useActionState, useState, useTransition, useEffect, useRef, useMemo,
 } from "react";
 import { createPqrs, respondPqrs, deletePqrs } from "./actions";
+import { attachmentFileName } from "@/lib/attachment-utils";
 import type { PqrsWithUnit, PqrsKPIs, Unit, PqrsFormState, PqrsResponseState } from "./types";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import {
   Plus, Loader2, Trash2, MessageSquare, CheckCircle2,
-  Clock, XCircle, AlertTriangle, FileText,
+  Clock, XCircle, AlertTriangle, FileText, Paperclip, Download,
 } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(ts: number) {
-  return new Date(ts * 1000).toLocaleDateString("es-CO", {
+  return new Date(ts * 1000).toLocaleString("es-CO", {
     day: "numeric", month: "short", year: "numeric",
+    hour: "numeric", minute: "2-digit",
   });
+}
+
+function formatTicket(n: number) {
+  return `PQR-${String(n).padStart(4, "0")}`;
 }
 
 const inputCls =
@@ -132,6 +138,12 @@ function NuevaPqrsSheet({ open, onClose, units, formAction, state, isPending }: 
               <textarea id="description" name="description" rows={4} required className={inputCls}
                 placeholder="Describe detalladamente la situación…" />
             </Field>
+            <Field label="Documentos adjuntos" htmlFor="attachments">
+              <input
+                id="attachments" name="attachments" type="file" multiple
+                className="w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-secondary file:text-foreground file:text-xs file:font-medium hover:file:bg-secondary/80"
+              />
+            </Field>
           </div>
           <div className="flex gap-3 p-6 border-t border-border bg-card shrink-0">
             <button type="button" onClick={onClose}
@@ -177,6 +189,9 @@ function DetailSheet({ item, open, onClose, slug }: {
         <div className="p-6 border-b border-border">
           <SheetHeader>
             <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-secondary text-foreground">
+                {formatTicket(item.ticketNumber)}
+              </span>
               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${tp.bg} ${tp.color}`}>
                 {tp.icon} {tp.label}
               </span>
@@ -208,6 +223,27 @@ function DetailSheet({ item, open, onClose, slug }: {
                 {item.description}
               </p>
             </div>
+
+            {/* Documentos adjuntos */}
+            {item.attachments.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                  Documentos adjuntos ({item.attachments.length})
+                </p>
+                <div className="space-y-1.5">
+                  {item.attachments.map((url) => (
+                    <a
+                      key={url} href={url} target="_blank" rel="noreferrer"
+                      className="flex items-center gap-2 text-sm text-primary bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 hover:bg-primary/10 transition-colors"
+                    >
+                      <Paperclip className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate flex-1">{attachmentFileName(url)}</span>
+                      <Download className="w-3.5 h-3.5 shrink-0" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Respuesta existente */}
             {item.response && (
@@ -272,6 +308,7 @@ export default function PqrsClient({
   const [detailItem,   setDetailItem]   = useState<PqrsWithUnit | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter,   setTypeFilter]   = useState<string>("all");
+  const [ticketFilter, setTicketFilter] = useState<string>("");
   const [deletingId,   setDeletingId]   = useState<string | null>(null);
   const [, startDeleteTransition] = useTransition();
 
@@ -288,12 +325,14 @@ export default function PqrsClient({
 
   // ─── Filtered list
   const filtered = useMemo(() => {
+    const ticketQuery = ticketFilter.trim().replace(/^PQR-?/i, "").replace(/^0+/, "");
     return items.filter((p) => {
       const matchStatus = statusFilter === "all" || p.status === statusFilter;
       const matchType   = typeFilter   === "all" || p.type   === typeFilter;
-      return matchStatus && matchType;
+      const matchTicket = ticketQuery === "" || String(p.ticketNumber).includes(ticketQuery);
+      return matchStatus && matchType && matchTicket;
     });
-  }, [items, statusFilter, typeFilter]);
+  }, [items, statusFilter, typeFilter, ticketFilter]);
 
   function handleDelete(id: string) {
     if (!confirm("¿Eliminar esta solicitud permanentemente?")) return;
@@ -360,6 +399,14 @@ export default function PqrsClient({
           <option value="claim">⚠️ Reclamo</option>
           <option value="suggestion">💡 Sugerencia</option>
         </select>
+        {/* Filtro por consecutivo */}
+        <input
+          type="text"
+          value={ticketFilter}
+          onChange={(e) => setTicketFilter(e.target.value)}
+          placeholder="Buscar por consecutivo… (ej. PQR-0012)"
+          className="bg-card border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 w-56"
+        />
       </div>
 
       {/* Tabla */}
@@ -384,6 +431,7 @@ export default function PqrsClient({
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-secondary/30">
               <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:table-cell">#</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Solicitud</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:table-cell">Unidad</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Prioridad</th>
@@ -402,13 +450,23 @@ export default function PqrsClient({
                   <tr key={p.id}
                     onClick={() => setDetailItem(p)}
                     className="hover:bg-secondary/20 transition-colors cursor-pointer group">
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      <span className="font-mono text-xs font-semibold text-muted-foreground whitespace-nowrap">
+                        {formatTicket(p.ticketNumber)}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-start gap-2">
                         <span className={`mt-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${tp.bg} ${tp.color} shrink-0`}>
                           {tp.icon}
                         </span>
                         <div>
-                          <p className="font-semibold text-foreground leading-tight">{p.subject}</p>
+                          <p className="font-semibold text-foreground leading-tight flex items-center gap-1.5">
+                            {p.subject}
+                            {p.attachments.length > 0 && (
+                              <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
+                            )}
+                          </p>
                           <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{p.description}</p>
                         </div>
                       </div>

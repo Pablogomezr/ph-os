@@ -4,6 +4,7 @@ export type Unit = typeof tenantSchema.units.$inferSelect;
 
 export type PqrsWithUnit = {
   id: string;
+  ticketNumber: number;
   unitId: string;
   unitNumber: string;
   userId: string;
@@ -13,6 +14,7 @@ export type PqrsWithUnit = {
   status: string;      // open | in_review | resolved | closed
   priority: string;    // low | normal | high | urgent
   response: string | null;
+  attachments: string[];
   resolvedAt: number | null;
   createdAt: number;
   updatedAt: number;

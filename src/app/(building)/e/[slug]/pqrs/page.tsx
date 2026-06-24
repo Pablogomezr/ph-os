@@ -21,22 +21,36 @@ export default async function PqrsPage({
 
   const unitMap = Object.fromEntries(units.map((u) => [u.id, u.number]));
 
+  // ─── Consecutivo: orden cronológico de creación (no se ve afectado por el
+  // orden de visualización ni por eliminaciones futuras) ────────────────────
+  const ticketMap = new Map(
+    [...rawItems]
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((p, i) => [p.id, i + 1])
+  );
+
   // ─── Construir PqrsWithUnit[] ─────────────────────────────────────────────
-  const items: PqrsWithUnit[] = rawItems.map((p) => ({
-    id:          p.id,
-    unitId:      p.unitId,
-    unitNumber:  unitMap[p.unitId] ?? "?",
-    userId:      p.userId,
-    type:        p.type,
-    subject:     p.subject,
-    description: p.description,
-    status:      p.status,
-    priority:    p.priority,
-    response:    p.response ?? null,
-    resolvedAt:  p.resolvedAt ?? null,
-    createdAt:   p.createdAt,
-    updatedAt:   p.updatedAt,
-  }));
+  const items: PqrsWithUnit[] = rawItems.map((p) => {
+    let attachments: string[] = [];
+    try { attachments = JSON.parse(p.attachments ?? "[]"); } catch {}
+    return {
+      id:          p.id,
+      ticketNumber: ticketMap.get(p.id) ?? 0,
+      unitId:      p.unitId,
+      unitNumber:  unitMap[p.unitId] ?? "?",
+      userId:      p.userId,
+      type:        p.type,
+      subject:     p.subject,
+      description: p.description,
+      status:      p.status,
+      priority:    p.priority,
+      response:    p.response ?? null,
+      attachments,
+      resolvedAt:  p.resolvedAt ?? null,
+      createdAt:   p.createdAt,
+      updatedAt:   p.updatedAt,
+    };
+  });
 
   // ─── KPIs ────────────────────────────────────────────────────────────────
   const kpis: PqrsKPIs = {

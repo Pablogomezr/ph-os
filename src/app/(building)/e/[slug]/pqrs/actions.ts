@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { uploadAttachments } from "@/lib/blob-upload";
 import type { PqrsFormState, PqrsResponseState } from "./types";
 
 // ─── Crear PQRS (admin registra en nombre de una unidad) ──────────────────────
@@ -30,6 +31,11 @@ export async function createPqrs(
   const now = Math.floor(Date.now() / 1000);
   const db  = await getTenantDb(slug);
 
+  const files = formData.getAll("attachments").filter((f): f is File => f instanceof File);
+  const attachmentUrls = files.length > 0
+    ? await uploadAttachments(files, `pqrs/${slug}`)
+    : [];
+
   await db.insert(tenantSchema.pqrs).values({
     id:          crypto.randomUUID(),
     unitId,
@@ -39,6 +45,7 @@ export async function createPqrs(
     description,
     priority,
     status:      "open",
+    attachments: JSON.stringify(attachmentUrls),
     createdAt:   now,
     updatedAt:   now,
   });

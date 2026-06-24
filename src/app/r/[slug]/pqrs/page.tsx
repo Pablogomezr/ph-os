@@ -11,27 +11,44 @@ export default async function ResidentPqrsPage({
   const db  = await getTenantDb(slug);
 
   // PQRS de las unidades del residente
-  const items = ctx.unitIds.length
-    ? await db.select().from(tenantSchema.pqrs)
-        .where(inArray(tenantSchema.pqrs.unitId, ctx.unitIds))
-        .orderBy(desc(tenantSchema.pqrs.createdAt))
-    : [];
+  const [items, allForNumbering] = await Promise.all([
+    ctx.unitIds.length
+      ? db.select().from(tenantSchema.pqrs)
+          .where(inArray(tenantSchema.pqrs.unitId, ctx.unitIds))
+          .orderBy(desc(tenantSchema.pqrs.createdAt))
+      : Promise.resolve([]),
+    // Consecutivo global del edificio (igual al que ve la administración)
+    db.select({ id: tenantSchema.pqrs.id, createdAt: tenantSchema.pqrs.createdAt })
+      .from(tenantSchema.pqrs),
+  ]);
+
+  const ticketMap = new Map(
+    [...allForNumbering]
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((p, i) => [p.id, i + 1])
+  );
 
   return (
     <div className="p-6 space-y-5">
       <PqrsResidentClient
         slug={slug}
         unitIds={ctx.unitIds}
-        items={items.map((p) => ({
-          id:          p.id,
-          type:        p.type,
-          subject:     p.subject,
-          description: p.description,
-          status:      p.status,
-          response:    p.response ?? null,
-          createdAt:   p.createdAt,
-          updatedAt:   p.updatedAt,
-        }))}
+        items={items.map((p) => {
+          let attachments: string[] = [];
+          try { attachments = JSON.parse(p.attachments ?? "[]"); } catch {}
+          return {
+            id:           p.id,
+            ticketNumber: ticketMap.get(p.id) ?? 0,
+            type:         p.type,
+            subject:      p.subject,
+            description:  p.description,
+            status:       p.status,
+            response:     p.response ?? null,
+            attachments,
+            createdAt:    p.createdAt,
+            updatedAt:    p.updatedAt,
+          };
+        })}
       />
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import { getResidentContext } from "@/lib/resident-auth";
+import { uploadAttachments } from "@/lib/blob-upload";
 import { revalidatePath } from "next/cache";
 import { nanoid } from "nanoid";
 
@@ -28,6 +29,11 @@ export async function createResidentPqrs(
   const db  = await getTenantDb(slug);
   const now = Math.floor(Date.now() / 1000);
 
+  const files = formData.getAll("attachments").filter((f): f is File => f instanceof File);
+  const attachmentUrls = files.length > 0
+    ? await uploadAttachments(files, `pqrs/${slug}`)
+    : [];
+
   await db.insert(tenantSchema.pqrs).values({
     id:          nanoid(),
     unitId,
@@ -38,6 +44,7 @@ export async function createResidentPqrs(
     status:      "open",
     priority:    "normal",
     response:    null,
+    attachments: JSON.stringify(attachmentUrls),
     resolvedAt:  null,
     createdAt:   now,
     updatedAt:   now,

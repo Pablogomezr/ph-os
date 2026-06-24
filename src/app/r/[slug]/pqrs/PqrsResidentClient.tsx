@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState, useState, useEffect, useRef } from "react";
-import { Plus, MessageSquare, X, CheckCircle2 } from "lucide-react";
+import { Plus, MessageSquare, X, CheckCircle2, Paperclip, Download } from "lucide-react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { createResidentPqrs, type PqrsResidentState } from "./actions";
+import { attachmentFileName } from "@/lib/attachment-utils";
 
 const TYPE_OPTIONS = [
   { value: "petition",    label: "Petición",    color: "text-[#6366F1]", bg: "bg-[#6366F1]/10"  },
@@ -22,8 +23,8 @@ const STATUS_CONFIG = {
 };
 
 interface PqrsItem {
-  id: string; type: string; subject: string; description: string;
-  status: string; response: string | null;
+  id: string; ticketNumber: number; type: string; subject: string; description: string;
+  status: string; response: string | null; attachments: string[];
   createdAt: number; updatedAt: number;
 }
 
@@ -32,14 +33,26 @@ interface Props {
 }
 
 function formatDate(ts: number) {
-  return new Date(ts * 1000).toLocaleDateString("es-CO", {
+  return new Date(ts * 1000).toLocaleString("es-CO", {
     day: "2-digit", month: "short", year: "numeric",
+    hour: "numeric", minute: "2-digit",
   });
+}
+
+function formatTicket(n: number) {
+  return `PQR-${String(n).padStart(4, "0")}`;
 }
 
 export default function PqrsResidentClient({ slug, unitIds, items }: Props) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<PqrsItem | null>(null);
+  const [ticketFilter, setTicketFilter] = useState("");
+
+  const filteredItems = (() => {
+    const q = ticketFilter.trim().replace(/^PQR-?/i, "").replace(/^0+/, "");
+    if (q === "") return items;
+    return items.filter((item) => String(item.ticketNumber).includes(q));
+  })();
 
   const createBound = createResidentPqrs.bind(null, slug);
   const [state, formAction, isPending] = useActionState<PqrsResidentState, FormData>(
@@ -70,6 +83,17 @@ export default function PqrsResidentClient({ slug, unitIds, items }: Props) {
         </button>
       </div>
 
+      {/* Filtro por consecutivo */}
+      {items.length > 0 && (
+        <input
+          type="text"
+          value={ticketFilter}
+          onChange={(e) => setTicketFilter(e.target.value)}
+          placeholder="Buscar por consecutivo… (ej. PQR-0012)"
+          className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+        />
+      )}
+
       {/* Lista */}
       {items.length === 0 ? (
         <div className="bg-card border border-border rounded-xl p-12 text-center">
@@ -82,9 +106,13 @@ export default function PqrsResidentClient({ slug, unitIds, items }: Props) {
             Radica tu primera solicitud →
           </button>
         </div>
+      ) : filteredItems.length === 0 ? (
+        <div className="bg-card border border-border rounded-xl p-8 text-center">
+          <p className="text-sm text-muted-foreground">Ningún resultado para ese consecutivo.</p>
+        </div>
       ) : (
         <div className="space-y-3">
-          {items.map((item) => {
+          {filteredItems.map((item) => {
             const typeInfo = TYPE_OPTIONS.find((t) => t.value === item.type);
             const statusInfo = STATUS_CONFIG[item.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.open;
             return (
@@ -98,7 +126,11 @@ export default function PqrsResidentClient({ slug, unitIds, items }: Props) {
                     {typeInfo?.label ?? item.type}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{item.subject}</p>
+                    <p className="text-[10px] font-mono font-semibold text-muted-foreground">{formatTicket(item.ticketNumber)}</p>
+                    <p className="text-sm font-medium text-foreground truncate flex items-center gap-1.5">
+                      {item.subject}
+                      {item.attachments.length > 0 && <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
@@ -172,6 +204,15 @@ export default function PqrsResidentClient({ slug, unitIds, items }: Props) {
                   className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" />
               </div>
 
+              {/* Documentos adjuntos */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Documentos adjuntos (opcional)</label>
+                <input
+                  type="file" name="attachments" multiple
+                  className="w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-muted file:text-foreground file:text-xs file:font-medium hover:file:bg-muted/80"
+                />
+              </div>
+
               {state?.error && (
                 <p className="text-xs text-[#EF4444] bg-[#EF4444]/10 rounded-lg px-3 py-2">{state.error}</p>
               )}
@@ -202,6 +243,7 @@ export default function PqrsResidentClient({ slug, unitIds, items }: Props) {
           {selected && (
             <>
               <SheetHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
+                <p className="text-xs font-mono font-bold text-muted-foreground">{formatTicket(selected.ticketNumber)}</p>
                 <SheetTitle className="text-base">{selected.subject}</SheetTitle>
                 <div className="flex items-center gap-2 mt-1">
                   {(() => {
@@ -222,6 +264,27 @@ export default function PqrsResidentClient({ slug, unitIds, items }: Props) {
                   <p className="text-xs font-semibold text-muted-foreground mb-2">Descripción</p>
                   <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{selected.description}</p>
                 </div>
+
+                {selected.attachments.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2">
+                      Documentos adjuntos ({selected.attachments.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {selected.attachments.map((url) => (
+                        <a
+                          key={url} href={url} target="_blank" rel="noreferrer"
+                          className="flex items-center gap-2 text-sm text-primary bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 hover:bg-primary/10 transition-colors"
+                        >
+                          <Paperclip className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate flex-1">{attachmentFileName(url)}</span>
+                          <Download className="w-3.5 h-3.5 shrink-0" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {selected.response ? (
                   <div className="bg-[#10B981]/5 border border-[#10B981]/20 rounded-xl p-4">
                     <p className="text-xs font-semibold text-[#10B981] mb-2 flex items-center gap-1.5">
