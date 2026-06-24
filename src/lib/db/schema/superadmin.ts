@@ -21,6 +21,7 @@ export const buildings = sqliteTable("buildings", {
   activeModules: text("active_modules").notNull().default('["base"]'), // JSON array
   status: text("status").notNull().default("active"), // active | suspended | trial
   plan: text("plan").notNull().default("base"),
+  whatsappPhoneId: text("whatsapp_phone_id"), // phone_number_id de Meta — enruta el webhook al edificio correcto
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),

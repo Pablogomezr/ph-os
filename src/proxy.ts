@@ -10,6 +10,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/api/webhooks(.*)",
   "/api/export/(.*)",   // Export route handlers (auth checked inside)
+  "/api/whatsapp/webhook", // Meta llama esta ruta sin sesión de Clerk — verificación propia (VERIFY_TOKEN)
   // Portal residentes: auth manejada en layout + lib/resident-auth
   // No se incluye aquí — la protección de Clerk continúa activa
 ]);
