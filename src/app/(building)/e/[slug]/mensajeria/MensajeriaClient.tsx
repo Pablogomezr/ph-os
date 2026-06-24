@@ -11,9 +11,10 @@ import {
 } from "@/components/ui/sheet";
 import {
   Plus, Loader2, Trash2, Send, FileText, Megaphone,
-  ScrollText, ReceiptText, Eye, EyeOff, BookOpen,
+  ScrollText, ReceiptText, Eye, EyeOff, BookOpen, Paperclip, Download,
 } from "lucide-react";
 import type { ComunicadoView, ComunicadosKPIs, ComunicadoFormState } from "./types";
+import { attachmentFileName } from "@/lib/attachment-utils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(ts: number) {
@@ -26,6 +27,9 @@ function formatDateTime(ts: number) {
     day: "numeric", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+}
+function formatTicket(n: number) {
+  return `COM-${String(n).padStart(4, "0")}`;
 }
 
 const inputCls =
@@ -149,6 +153,13 @@ function NuevoComunicadoSheet({ open, onClose, formAction, state, isPending }: {
                 onChange={(e) => setCharCount(e.target.value.length)}
               />
             </Field>
+
+            <Field label="Documentos adjuntos" htmlFor="attachments">
+              <input
+                id="attachments" name="attachments" type="file" multiple
+                className="w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-secondary file:text-foreground file:text-xs file:font-medium hover:file:bg-secondary/80"
+              />
+            </Field>
           </div>
 
           <div className="flex gap-3 p-6 border-t border-border bg-card shrink-0">
@@ -202,6 +213,9 @@ function DetailSheet({ item, open, onClose, slug }: {
         <div className="p-6 border-b border-border">
           <SheetHeader>
             <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-secondary text-foreground">
+                {formatTicket(item.ticketNumber)}
+              </span>
               <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${tp.bg} ${tp.color}`}>
                 <TypeIcon className="w-3 h-3" />{tp.label}
               </span>
@@ -223,10 +237,30 @@ function DetailSheet({ item, open, onClose, slug }: {
           </SheetHeader>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <div className="bg-secondary/30 rounded-xl p-4 text-sm text-foreground leading-relaxed whitespace-pre-wrap">
             {item.body}
           </div>
+
+          {item.attachmentUrls.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Documentos adjuntos ({item.attachmentUrls.length})
+              </p>
+              <div className="space-y-1.5">
+                {item.attachmentUrls.map((url) => (
+                  <a
+                    key={url} href={url} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-2 text-sm text-primary bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 hover:bg-primary/10 transition-colors"
+                  >
+                    <Paperclip className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate flex-1">{attachmentFileName(url)}</span>
+                    <Download className="w-3.5 h-3.5 shrink-0" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3 p-6 border-t border-border bg-card shrink-0">
@@ -269,6 +303,7 @@ export default function MensajeriaClient({
   const [detailItem,   setDetailItem]   = useState<ComunicadoView | null>(null);
   const [typeFilter,   setTypeFilter]   = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
+  const [ticketFilter, setTicketFilter] = useState("");
   const [deletingId,   setDeletingId]   = useState<string | null>(null);
   const [, startDeleteTransition] = useTransition();
 
@@ -283,14 +318,16 @@ export default function MensajeriaClient({
   }, [state]);
 
   const filtered = useMemo(() => {
+    const ticketQuery = ticketFilter.trim().replace(/^COM-?/i, "").replace(/^0+/, "");
     return items.filter((c) => {
       const matchType   = typeFilter   === "all" || c.type === typeFilter;
       const matchStatus = statusFilter === "all"
         || (statusFilter === "published" && c.isPublished)
         || (statusFilter === "draft"     && !c.isPublished);
-      return matchType && matchStatus;
+      const matchTicket = ticketQuery === "" || String(c.ticketNumber).includes(ticketQuery);
+      return matchType && matchStatus && matchTicket;
     });
-  }, [items, typeFilter, statusFilter]);
+  }, [items, typeFilter, statusFilter, ticketFilter]);
 
   function handleDelete(id: string) {
     if (!confirm("¿Eliminar este comunicado permanentemente?")) return;
@@ -353,6 +390,13 @@ export default function MensajeriaClient({
           <option value="acta">📖 Acta</option>
           <option value="invoice">🧾 Factura</option>
         </select>
+        <input
+          type="text"
+          value={ticketFilter}
+          onChange={(e) => setTicketFilter(e.target.value)}
+          placeholder="Buscar por consecutivo… (ej. COM-0012)"
+          className="bg-card border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 w-56"
+        />
       </div>
 
       {/* Lista de comunicados */}
@@ -396,11 +440,16 @@ export default function MensajeriaClient({
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-xs font-mono font-semibold text-muted-foreground">{formatTicket(c.ticketNumber)}</span>
+                          <span className="text-muted-foreground/40">·</span>
                           <span className={`text-xs font-semibold ${tp.color}`}>{tp.label}</span>
                           <span className="text-muted-foreground/40">·</span>
                           <span className="text-xs text-muted-foreground">{target}</span>
                         </div>
-                        <p className="font-semibold text-foreground leading-tight">{c.title}</p>
+                        <p className="font-semibold text-foreground leading-tight flex items-center gap-1.5">
+                          {c.title}
+                          {c.attachmentUrls.length > 0 && <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />}
+                        </p>
                         <p className="text-sm text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
                           {c.body}
                         </p>

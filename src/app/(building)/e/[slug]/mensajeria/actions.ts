@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { uploadAttachments } from "@/lib/blob-upload";
 import type { ComunicadoFormState } from "./types";
 
 // ─── Crear comunicado (queda como borrador) ───────────────────────────────────
@@ -28,14 +29,20 @@ export async function createComunicado(
   const now = Math.floor(Date.now() / 1000);
   const db  = await getTenantDb(slug);
 
+  const files = formData.getAll("attachments").filter((f): f is File => f instanceof File);
+  const attachmentUrls = files.length > 0
+    ? await uploadAttachments(files, `comunicados/${slug}`)
+    : [];
+
   await db.insert(tenantSchema.communications).values({
-    id:          crypto.randomUUID(),
+    id:             crypto.randomUUID(),
     title,
     body,
     type,
     targetRoles,
-    createdBy:   userId,
-    createdAt:   now,
+    attachmentUrls: JSON.stringify(attachmentUrls),
+    createdBy:      userId,
+    createdAt:      now,
   });
 
   revalidatePath(`/e/${slug}/mensajeria`);

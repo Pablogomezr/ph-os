@@ -19,20 +19,31 @@ export default async function MensajeriaPage({
     .from(tenantSchema.communications)
     .orderBy(desc(tenantSchema.communications.createdAt));
 
+  // ─── Consecutivo: orden cronológico de creación ───────────────────────────
+  const ticketMap = new Map(
+    [...rawItems]
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((c, i) => [c.id, i + 1])
+  );
+
   // ─── Construir ComunicadoView[] ──────────────────────────────────────────
   const items: ComunicadoView[] = rawItems.map((c) => {
     let targetRoles: string[] = ["all"];
     try { targetRoles = JSON.parse(c.targetRoles); } catch {}
+    let attachmentUrls: string[] = [];
+    try { attachmentUrls = JSON.parse(c.attachmentUrls ?? "[]"); } catch {}
     return {
-      id:          c.id,
-      title:       c.title,
-      body:        c.body,
-      type:        c.type,
+      id:           c.id,
+      ticketNumber: ticketMap.get(c.id) ?? 0,
+      title:        c.title,
+      body:         c.body,
+      type:         c.type,
       targetRoles,
-      publishedAt: c.publishedAt ?? null,
-      isPublished: !!c.publishedAt,
-      createdBy:   c.createdBy,
-      createdAt:   c.createdAt,
+      attachmentUrls,
+      publishedAt:  c.publishedAt ?? null,
+      isPublished:  !!c.publishedAt,
+      createdBy:    c.createdBy,
+      createdAt:    c.createdAt,
     };
   });
 

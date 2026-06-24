@@ -4,10 +4,12 @@ export type Communication = typeof tenantSchema.communications.$inferSelect;
 
 export type ComunicadoView = {
   id: string;
+  ticketNumber: number;
   title: string;
   body: string;
   type: string;          // announcement | circular | acta | invoice
   targetRoles: string[]; // parsed JSON
+  attachmentUrls: string[];
   publishedAt: number | null;
   isPublished: boolean;
   createdBy: string;
