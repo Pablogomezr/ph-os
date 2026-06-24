@@ -1,6 +1,8 @@
 import { requireModule } from "../_components/ModuleGuard";
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
-import { desc, sql } from "drizzle-orm";
+import { getSuperadminDb } from "@/lib/db/superadmin";
+import * as saSchema from "@/lib/db/schema/superadmin";
+import { eq, desc, sql } from "drizzle-orm";
 import FinanzasClient from "./FinanzasClient";
 import type { ChargeWithUnit, KPIs } from "./types";
 
@@ -14,6 +16,13 @@ export default async function FinanzasPage({
 
   const db  = await getTenantDb(slug);
   const now = Math.floor(Date.now() / 1000);
+
+  const saDb    = getSuperadminDb();
+  const building = await saDb
+    .select({ name: saSchema.buildings.name, nit: saSchema.buildings.nit, city: saSchema.buildings.city })
+    .from(saSchema.buildings)
+    .where(eq(saSchema.buildings.slug, slug))
+    .get();
 
   const [charges, units, paymentSums, residents] = await Promise.all([
     db.select().from(tenantSchema.charges).orderBy(desc(tenantSchema.charges.createdAt)),
@@ -36,11 +45,12 @@ export default async function FinanzasPage({
     const isOverdue       = c.status === "pending" && c.dueDate < now;
     const effectiveStatus = isOverdue ? "overdue" : c.status;
     return {
-      id:             c.id,
-      unitId:         c.unitId,
-      unitNumber:     unitMap[c.unitId] ?? "?",
-      concept:        c.concept,
-      description:    c.description ?? null,
+      id:              c.id,
+      unitId:          c.unitId,
+      unitNumber:      unitMap[c.unitId] ?? "?",
+      concept:         c.concept,
+      specificConcept: c.specificConcept ?? null,
+      description:     c.description ?? null,
       amount:         c.amount,
       dueDate:        c.dueDate,
       status:         c.status,
@@ -79,6 +89,9 @@ export default async function FinanzasPage({
     <div className="p-6 space-y-5">
       <FinanzasClient
         slug={slug}
+        buildingName={building?.name ?? slug}
+        buildingNit={building?.nit ?? null}
+        buildingCity={building?.city ?? null}
         charges={chargesWithUnit}
         units={units}
         residents={residents}

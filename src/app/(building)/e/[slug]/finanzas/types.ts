@@ -8,6 +8,7 @@ export type ChargeWithUnit = {
   unitId: string;
   unitNumber: string;
   concept: string;
+  specificConcept: string | null;
   description: string | null;
   amount: number;
   dueDate: number;
