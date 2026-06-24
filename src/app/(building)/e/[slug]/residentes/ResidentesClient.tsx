@@ -12,7 +12,8 @@ type Resident = typeof tenantSchema.users.$inferSelect;
 type Unit     = typeof tenantSchema.units.$inferSelect;
 
 const ROLES = [
-  { value: "resident",   label: "Residente",     color: "text-[#22D3EE]", bg: "bg-[#22D3EE]/10" },
+  { value: "resident",   label: "Propietario",    color: "text-[#22D3EE]", bg: "bg-[#22D3EE]/10" },
+  { value: "tenant",     label: "Arrendatario",   color: "text-[#A855F7]", bg: "bg-[#A855F7]/10" },
   { value: "admin",      label: "Administrador",  color: "text-[#6366F1]", bg: "bg-[#6366F1]/10" },
   { value: "technician", label: "Técnico",        color: "text-[#F59E0B]", bg: "bg-[#F59E0B]/10" },
 ];
@@ -49,7 +50,7 @@ export default function ResidentesClient({
   }, [state]);
 
   function handleDelete(id: string) {
-    if (!confirm("¿Eliminar este residente? Esta acción no se puede deshacer.")) return;
+    if (!confirm("¿Eliminar este registro? Esta acción no se puede deshacer.")) return;
     setDeletingId(id);
     startDeleteTransition(async () => {
       await deleteResident(slug, id);
@@ -82,7 +83,7 @@ export default function ResidentesClient({
     <>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Residentes</h1>
+          <h1 className="text-2xl font-bold text-foreground">Propietarios</h1>
           <p className="text-muted-foreground text-sm mt-1">
             {residents.length} persona{residents.length !== 1 ? "s" : ""} registrada{residents.length !== 1 ? "s" : ""}
           </p>
@@ -92,7 +93,7 @@ export default function ResidentesClient({
           className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Nuevo residente
+          Nuevo registro
         </button>
       </div>
 
@@ -114,16 +115,16 @@ export default function ResidentesClient({
       {residents.length === 0 ? (
         <div className="bg-card border border-border rounded-xl p-12 text-center">
           <Users className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
-          <p className="text-foreground font-medium mb-1">No hay residentes registrados</p>
+          <p className="text-foreground font-medium mb-1">No hay propietarios registrados</p>
           <p className="text-muted-foreground text-sm mb-5">
-            Registra propietarios, residentes y personal del edificio.
+            Registra propietarios, arrendatarios y personal del edificio.
           </p>
           <button
             onClick={() => setOpen(true)}
             className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Registrar primer residente
+            Registrar primero
           </button>
         </div>
       ) : (
@@ -201,7 +202,7 @@ export default function ResidentesClient({
         <SheetContent className="bg-card border-border w-full sm:max-w-md flex flex-col p-0">
           <div className="p-6 border-b border-border">
             <SheetHeader>
-              <SheetTitle className="text-foreground">Nuevo Residente</SheetTitle>
+              <SheetTitle className="text-foreground">Nuevo registro</SheetTitle>
               <SheetDescription className="text-muted-foreground">
                 Registra propietarios, arrendatarios o personal del edificio.
               </SheetDescription>
@@ -276,7 +277,7 @@ export default function ResidentesClient({
                 disabled={isPending}
                 className="flex-1 flex items-center justify-center gap-2 bg-primary text-white py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
-                {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando…</> : "Guardar residente"}
+                {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando…</> : "Guardar"}
               </button>
             </div>
           </form>

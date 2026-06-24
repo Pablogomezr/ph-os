@@ -4,6 +4,13 @@ import { inArray } from "drizzle-orm";
 import { UserButton } from "@clerk/nextjs";
 import { User, Phone, Mail, Building2, Hash } from "lucide-react";
 
+function roleLabel(role: string) {
+  if (role === "resident") return "Propietario";
+  if (role === "tenant") return "Arrendatario";
+  if (role === "admin") return "Administrador";
+  return "Técnico";
+}
+
 function InfoRow({ icon: Icon, label, value }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string; value: string | null | undefined;
@@ -58,13 +65,13 @@ export default async function ResidentPerfilPage({
           </div>
           <div>
             <p className="font-bold text-foreground text-lg">{ctx.user.name}</p>
-            <p className="text-xs text-muted-foreground capitalize">{ctx.user.role}</p>
+            <p className="text-xs text-muted-foreground">{roleLabel(ctx.user.role)}</p>
           </div>
         </div>
 
         <InfoRow icon={Mail}     label="Correo electrónico" value={ctx.user.email} />
         <InfoRow icon={Phone}    label="Teléfono"           value={ctx.user.phone} />
-        <InfoRow icon={User}     label="Rol"                value={ctx.user.role === "resident" ? "Residente" : ctx.user.role === "admin" ? "Administrador" : "Técnico"} />
+        <InfoRow icon={User}     label="Rol"                value={roleLabel(ctx.user.role)} />
       </div>
 
       {/* Unidades */}
