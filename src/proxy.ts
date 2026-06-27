@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 const isPublicRoute = createRouteMatcher([
   "/",
   "/precios",
+  "/privacidad",
   "/offline",
   "/manifest.json",     // PWA manifest
   "/sign-in(.*)",
