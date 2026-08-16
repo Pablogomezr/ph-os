@@ -5,6 +5,27 @@
     },
     "src/app/api/export/**": {
       "maxDuration": 30
+    },
+    "src/app/api/cron/**": {
+      "maxDuration": 300
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/cartera-avisos?tipo=1",
+      "schedule": "0 13 6 * *"
+    },
+    {
+      "path": "/api/cron/cartera-avisos?tipo=2",
+      "schedule": "0 13 16 * *"
+    },
+    {
+      "path": "/api/cron/cartera-avisos?tipo=3",
+      "schedule": "0 13 26 * *"
+    },
+    {
+      "path": "/api/cron/jobs-worker",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }

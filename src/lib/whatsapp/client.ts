@@ -97,3 +97,50 @@ export function parseIncomingWebhook(body: unknown): IncomingWhatsAppMessage | n
     return null;
   }
 }
+
+/**
+ * Envía una PLANTILLA pre-aprobada por Meta.
+ *
+ * Fuera de la ventana de 24 horas desde el último mensaje del usuario, WhatsApp
+ * no permite texto libre. Los avisos de cartera son conversaciones iniciadas
+ * por el negocio, así que obligatoriamente van por esta vía.
+ *
+ * Efecto secundario feliz: la plantilla es literalmente cerrada. El agente no
+ * puede improvisar el texto, solo llenar variables — por eso estos envíos
+ * pueden ser autónomos sin riesgo de que escriba algo inconveniente.
+ */
+export async function sendWhatsAppTemplate(
+  phoneNumberId: string,
+  to: string,
+  plantilla: string,
+  idioma: string,
+  variables: readonly string[],
+): Promise<{ waMessageId: string | null }> {
+  const res = await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "template",
+      template: {
+        name: plantilla,
+        language: { code: idioma },
+        components: variables.length > 0
+          ? [{ type: "body", parameters: variables.map((v) => ({ type: "text", text: v })) }]
+          : [],
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const detalle = await res.text().catch(() => "");
+    throw new Error(`Meta rechazó la plantilla "${plantilla}" (${res.status}): ${detalle}`);
+  }
+
+  const cuerpo = await res.json().catch(() => null);
+  return { waMessageId: cuerpo?.messages?.[0]?.id ?? null };
+}

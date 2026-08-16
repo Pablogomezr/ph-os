@@ -64,6 +64,7 @@ CREATE TABLE `cartera_notices` (
 	`period` text NOT NULL,
 	`notice_type` integer NOT NULL,
 	`balance_at_send` integer NOT NULL,
+	`job_id` text,
 	`recipient_user_id` text,
 	`recipient_phone` text,
 	`wa_message_id` text,

@@ -300,6 +300,9 @@ export const carteraNotices = sqliteTable("cartera_notices", {
   // Pesos COP ENTEROS. El resto del esquema usa real por razones históricas;
   // el redondeo se hace una sola vez, en lib/cartera/saldo.ts.
   balanceAtSend: integer("balance_at_send").notNull(),
+  // Qué job reservó esta fila. Distingue "mi propio reintento tras un fallo
+  // conocido" de "otra ejecución reservó esto" — ver ejecutar.ts.
+  jobId: text("job_id"),
   recipientUserId: text("recipient_user_id"),
   recipientPhone: text("recipient_phone"),
   waMessageId: text("wa_message_id"),                    // null hasta que Meta responde
