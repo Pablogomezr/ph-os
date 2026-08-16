@@ -5,6 +5,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { notFound, redirect } from "next/navigation";
 import BuildingSidebar from "./_components/BuildingSidebar";
 import type { Module } from "@/lib/modules/checker";
+import { getUnreadWhatsappCount } from "@/lib/whatsapp/unread";
 
 export default async function BuildingLayout({
   children,
@@ -94,6 +95,8 @@ export default async function BuildingLayout({
     activeModules = JSON.parse(building.activeModules) as Module[];
   } catch {}
 
+  const unreadWhatsapp = await getUnreadWhatsappCount(slug);
+
   return (
     <div className="flex flex-col md:flex-row h-screen bg-background overflow-hidden">
       <BuildingSidebar
@@ -102,6 +105,7 @@ export default async function BuildingLayout({
         city={building.city}
         activeModules={activeModules}
         isSuperadmin={isSuperadmin}
+        unreadWhatsapp={unreadWhatsapp}
       />
       <main className="flex-1 overflow-auto">
         {children}

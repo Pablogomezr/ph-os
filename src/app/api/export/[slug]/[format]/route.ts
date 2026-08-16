@@ -332,5 +332,194 @@ export async function GET(
     });
   }
 
+  // ─── CONCILIACIÓN — reporte completo en vivo (Finanzas → Conciliación) ────
+  if (format === "conciliacion") {
+    const [bankMovements, users] = await Promise.all([
+      db.select().from(tenantSchema.bankMovements).orderBy(desc(tenantSchema.bankMovements.date)),
+      db.select().from(tenantSchema.users),
+    ]);
+
+    // Residente principal por unidad (para "Top Deudores")
+    const residentByUnit: Record<string, string> = {};
+    for (const u of users) {
+      let unitIds: string[] = [];
+      try { unitIds = JSON.parse(u.unitIds || "[]"); } catch {}
+      for (const uid of unitIds) {
+        if (!residentByUnit[uid]) residentByUnit[uid] = u.name;
+      }
+    }
+    const userNameById = Object.fromEntries(users.map((u) => [u.id, u.name]));
+
+    const paidByCharge: Record<string, number> = {};
+    for (const p of paymentRows) {
+      paidByCharge[p.chargeId] = (paidByCharge[p.chargeId] ?? 0) + p.amount;
+    }
+
+    // Unidad(es) aplicada(s) a cada movimiento bancario, vía el pago que lo conciliό
+    const unitsByMovement: Record<string, Set<string>> = {};
+    for (const p of paymentRows) {
+      if (!p.matchedMovementId) continue;
+      if (!unitsByMovement[p.matchedMovementId]) unitsByMovement[p.matchedMovementId] = new Set();
+      unitsByMovement[p.matchedMovementId].add(unitMap[p.unitId] ?? "?");
+    }
+
+    const detalle = charges.map((c) => {
+      const paid = paidByCharge[c.id] ?? 0;
+      return {
+        unidad: unitMap[c.unitId] ?? "?",
+        concepto: c.specificConcept || (CONCEPT_LABELS[c.concept] ?? c.concept),
+        cargado: c.amount,
+        pagado: Math.min(paid, c.amount),
+        saldo: Math.max(c.amount - paid, 0),
+        estado: c.status,
+      };
+    });
+
+    const byUnit: Record<string, { unidad: string; residente: string; cargado: number; pagado: number; saldo: number }> = {};
+    for (const d of detalle) {
+      if (!byUnit[d.unidad]) {
+        const unitEntry = units.find((u) => u.number === d.unidad);
+        byUnit[d.unidad] = {
+          unidad: d.unidad,
+          residente: unitEntry ? (residentByUnit[unitEntry.id] ?? "Sin registrar") : "?",
+          cargado: 0, pagado: 0, saldo: 0,
+        };
+      }
+      byUnit[d.unidad].cargado += d.cargado;
+      byUnit[d.unidad].pagado += d.pagado;
+      byUnit[d.unidad].saldo += d.saldo;
+    }
+    const topDeudores = Object.values(byUnit).sort((a, b) => b.saldo - a.saldo);
+
+    const byConcepto: Record<string, { concepto: string; cargado: number; pagado: number; saldo: number }> = {};
+    for (const d of detalle) {
+      if (!byConcepto[d.concepto]) byConcepto[d.concepto] = { concepto: d.concepto, cargado: 0, pagado: 0, saldo: 0 };
+      byConcepto[d.concepto].cargado += d.cargado;
+      byConcepto[d.concepto].pagado += d.pagado;
+      byConcepto[d.concepto].saldo += d.saldo;
+    }
+    const resumenConcepto = Object.values(byConcepto).sort((a, b) => b.saldo - a.saldo);
+
+    const totalCargado = charges.reduce((s, c) => s + c.amount, 0);
+    const totalPagado = paymentRows.reduce((s, p) => s + p.amount, 0);
+    const totalPendiente = detalle.reduce((s, d) => s + d.saldo, 0);
+    const pendientesConciliacion = paymentRows.filter((p) => p.bankStatus === "unverified");
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Propiedad Horizontal OS";
+    wb.created = new Date();
+
+    const headerStyle = (row: ExcelJS.Row, color: string) => {
+      row.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
+      row.alignment = { horizontal: "center" };
+    };
+
+    // ── Resumen Ejecutivo
+    const wsRes = wb.addWorksheet("Resumen Ejecutivo");
+    wsRes.addRow(["REPORTE DE CONCILIACIÓN — " + slug]);
+    wsRes.getRow(1).font = { bold: true, size: 14 };
+    wsRes.addRow(["Generado: " + new Date().toLocaleString("es-CO")]);
+    wsRes.addRow([]);
+    wsRes.addRow(["Total cargado (histórico)", totalCargado]).getCell(2).numFmt = '"$"#,##0';
+    wsRes.addRow(["Total pagado", totalPagado]).getCell(2).numFmt = '"$"#,##0';
+    wsRes.addRow(["Total pendiente por cobrar", totalPendiente]).getCell(2).numFmt = '"$"#,##0';
+    wsRes.addRow(["Tasa de cobranza", totalCargado > 0 ? `${Math.round((totalPagado / totalCargado) * 100)}%` : "—"]);
+    wsRes.addRow([]);
+    wsRes.addRow(["Movimientos bancarios importados", bankMovements.length]);
+    wsRes.addRow(["Pagos pendientes de conciliación bancaria", pendientesConciliacion.length]);
+    wsRes.addRow(["Pagos verificados contra el banco", paymentRows.filter((p) => p.bankStatus !== "unverified").length]);
+    wsRes.getColumn(1).width = 40;
+    wsRes.getColumn(2).width = 22;
+
+    // ── Detalle por Unidad y Concepto
+    const wsDet = wb.addWorksheet("Detalle por Unidad y Concepto");
+    wsDet.columns = [
+      { header: "Unidad", key: "unidad", width: 12 },
+      { header: "Concepto", key: "concepto", width: 32 },
+      { header: "Cargado", key: "cargado", width: 16, style: { numFmt: '"$"#,##0' } },
+      { header: "Pagado", key: "pagado", width: 16, style: { numFmt: '"$"#,##0' } },
+      { header: "Saldo Pendiente", key: "saldo", width: 18, style: { numFmt: '"$"#,##0' } },
+      { header: "Estado", key: "estado", width: 14 },
+    ];
+    headerStyle(wsDet.getRow(1), "FF6366F1");
+    detalle.forEach((d) => wsDet.addRow(d));
+    wsDet.autoFilter = { from: "A1", to: `F${detalle.length + 1}` };
+
+    // ── Resumen por Concepto
+    const wsConc = wb.addWorksheet("Resumen por Concepto");
+    wsConc.columns = [
+      { header: "Concepto", key: "concepto", width: 30 },
+      { header: "Cargado", key: "cargado", width: 16, style: { numFmt: '"$"#,##0' } },
+      { header: "Pagado", key: "pagado", width: 16, style: { numFmt: '"$"#,##0' } },
+      { header: "Saldo Pendiente", key: "saldo", width: 18, style: { numFmt: '"$"#,##0' } },
+    ];
+    headerStyle(wsConc.getRow(1), "FF6366F1");
+    resumenConcepto.forEach((r) => wsConc.addRow(r));
+
+    // ── Top Deudores
+    const wsTop = wb.addWorksheet("Top Deudores");
+    wsTop.columns = [
+      { header: "Unidad", key: "unidad", width: 12 },
+      { header: "Residente/Propietario", key: "residente", width: 32 },
+      { header: "Cargado", key: "cargado", width: 16, style: { numFmt: '"$"#,##0' } },
+      { header: "Pagado", key: "pagado", width: 16, style: { numFmt: '"$"#,##0' } },
+      { header: "Saldo Pendiente", key: "saldo", width: 18, style: { numFmt: '"$"#,##0' } },
+    ];
+    headerStyle(wsTop.getRow(1), "FFEF4444");
+    topDeudores.forEach((r) => wsTop.addRow(r));
+    wsTop.autoFilter = { from: "A1", to: `E${topDeudores.length + 1}` };
+
+    // ── Movimientos Bancarios Importados
+    const wsBanco = wb.addWorksheet("Movimientos Bancarios");
+    wsBanco.columns = [
+      { header: "Fecha", key: "fecha", width: 14 },
+      { header: "Monto", key: "monto", width: 16, style: { numFmt: '"$"#,##0' } },
+      { header: "Referencia", key: "referencia", width: 20 },
+      { header: "Descripción", key: "descripcion", width: 40 },
+      { header: "Unidad Aplicada", key: "unidad", width: 18 },
+      { header: "Estado", key: "estado", width: 16 },
+    ];
+    headerStyle(wsBanco.getRow(1), "FF10B981");
+    bankMovements.forEach((m) => {
+      const unitsMatched = unitsByMovement[m.id];
+      wsBanco.addRow({
+        fecha: formatDateStr(m.date), monto: m.amount, referencia: m.reference, descripcion: m.description,
+        unidad: unitsMatched ? [...unitsMatched].join(", ") : "—",
+        estado: unitsMatched ? "Aplicado a pago" : "Sin conciliar",
+      });
+    });
+
+    // ── Pagos Pendientes de Conciliación
+    const wsPend = wb.addWorksheet("Pendientes de Conciliación");
+    wsPend.columns = [
+      { header: "Unidad", key: "unidad", width: 12 },
+      { header: "Reportado por", key: "reportadoPor", width: 28 },
+      { header: "Teléfono", key: "telefono", width: 16 },
+      { header: "Monto", key: "monto", width: 16, style: { numFmt: '"$"#,##0' } },
+      { header: "Referencia", key: "referencia", width: 20 },
+      { header: "Fecha", key: "fecha", width: 14 },
+      { header: "Notas", key: "notas", width: 40 },
+    ];
+    headerStyle(wsPend.getRow(1), "FFF59E0B");
+    pendientesConciliacion.forEach((p) => wsPend.addRow({
+      unidad: unitMap[p.unitId] ?? "?",
+      reportadoPor: p.reportedByUserId ? (userNameById[p.reportedByUserId] ?? "—") : "—",
+      telefono: p.reportedByPhone ?? "—",
+      monto: p.amount, referencia: p.reference ?? "",
+      fecha: formatDateStr(p.createdAt), notas: p.notes ?? "",
+    }));
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const filename = `conciliacion-${slug}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+    return new NextResponse(buffer, {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+      },
+    });
+  }
+
   return NextResponse.json({ error: "Formato no soportado" }, { status: 400 });
 }

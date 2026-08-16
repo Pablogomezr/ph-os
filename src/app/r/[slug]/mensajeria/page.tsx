@@ -7,7 +7,7 @@ export default async function ResidentMensajeriaPage({
   params,
 }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  await requireResidentContext(slug);
+  const ctx = await requireResidentContext(slug);
   const db = await getTenantDb(slug);
 
   // Solo comunicados publicados (publishedAt IS NOT NULL) + consecutivo global
@@ -25,7 +25,20 @@ export default async function ResidentMensajeriaPage({
       .map((c, i) => [c.id, i + 1])
   );
 
-  const items = allComms.map((c) => {
+  // Un comunicado llega a este residente si: lo incluye su envío puntual
+  // (targetUserIds), o si no hay envío puntual y su rol calza con targetRoles.
+  const roleKey = ctx.user.role === "tenant" ? "tenant" : "owner";
+  const visibleComms = allComms.filter((c) => {
+    let targetUserIds: string[] = [];
+    try { targetUserIds = JSON.parse(c.targetUserIds ?? "[]"); } catch {}
+    if (targetUserIds.length > 0) return targetUserIds.includes(ctx.user.id);
+
+    let targetRoles: string[] = ["all"];
+    try { targetRoles = JSON.parse(c.targetRoles); } catch {}
+    return targetRoles.includes("all") || targetRoles.includes(roleKey);
+  });
+
+  const items = visibleComms.map((c) => {
     let attachmentUrls: string[] = [];
     try { attachmentUrls = JSON.parse(c.attachmentUrls ?? "[]"); } catch {}
     return {

@@ -28,6 +28,8 @@ export const units = sqliteTable("units", {
   floor: integer("floor"),
   areaMq: real("area_m2"),
   coefficient: real("coefficient").notNull(), // coeficiente de copropiedad
+  costCenter: text("cost_center"), // centro de costos contable (independiente del número/referencia)
+  businessName: text("business_name"), // razón social de la empresa dueña/arrendataria, si aplica
   ownerId: text("owner_id"),
   residentId: text("resident_id"),
   status: text("status").notNull().default("occupied"), // occupied | vacant | maintenance
@@ -44,6 +46,7 @@ export const charges = sqliteTable("charges", {
   concept: text("concept").notNull(),     // ordinary | extraordinary | energy | water | audit | other
   specificConcept: text("specific_concept"), // "Vatia" | "Triple A" | "Auditoría"
   description: text("description"),
+  reference: text("reference"), // número de documento contable — FV-1234, rc-5678, NC-90, etc.
   amount: real("amount").notNull(),       // COP
   dueDate: integer("due_date").notNull(),
   status: text("status").notNull().default("pending"), // pending | partial | paid | overdue
@@ -67,7 +70,39 @@ export const payments = sqliteTable("payments", {
   reference: text("reference"),
   receiptUrl: text("receipt_url"),        // soporte en R2
   notes: text("notes"),
+  // Estado de conciliación contra el extracto bancario real — ver bankMovements.
+  // "unverified": aún no se cruzó contra el banco (o no hubo match).
+  // "verified": el monto+referencia (o monto+fecha) coincide con un movimiento real.
+  // "manual": un administrador lo verificó/aprobó a mano sin match automático.
+  bankStatus: text("bank_status").notNull().default("unverified"),
+  matchedMovementId: text("matched_movement_id"),
+  // Residente identificado por número de WhatsApp que reportó el pago
+  // (null si se registró manualmente desde el panel de administración).
+  reportedByUserId: text("reported_by_user_id"),
+  reportedByPhone: text("reported_by_phone"),
   createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
+});
+
+// ─── MOVIMIENTOS BANCARIOS (extracto importado) ──────────────────────────────
+export const bankMovements = sqliteTable("bank_movements", {
+  id: text("id").primaryKey(),
+  date: integer("date").notNull(),
+  amount: real("amount").notNull(),
+  reference: text("reference").notNull().default(""),
+  description: text("description").notNull().default(""),
+  createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
+});
+
+// ─── ALIASES DE REFERENCIA DE PAGO ───────────────────────────────────────────
+// Identificadores recurrentes (NIT, cédula, código, nombre+número) que ciertos
+// terceros usan al pagar. Permiten reconocer de qué unidad viene un movimiento
+// bancario aunque el monto no coincida exacto (pagos de varios meses).
+export const paymentReferences = sqliteTable("payment_references", {
+  id: text("id").primaryKey(),
+  reference: text("reference").notNull(), // normalizado en MAYÚSCULAS
+  unitId: text("unit_id").notNull(),
+  note: text("note"),
   createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
 });
 
@@ -148,6 +183,10 @@ export const communications = sqliteTable("communications", {
   type: text("type").notNull(),           // announcement | circular | acta | invoice
   targetRoles: text("target_roles").notNull().default('["all"]'),
   targetUnitTypes: text("target_unit_types"),  // JSON: ["apartment","office"] | null
+  // Si tiene valores, el comunicado se dirige SOLO a estos usuarios puntuales
+  // (ignora targetRoles/targetUnitTypes) — permite elegir arrendatarios
+  // individuales o un subconjunto específico en vez de toda la categoría.
+  targetUserIds: text("target_user_ids"),      // JSON: ["userId1","userId2"] | null
   attachmentUrls: text("attachment_urls").default("[]"),
   publishedAt: integer("published_at"),
   createdBy: text("created_by").notNull(),
@@ -170,6 +209,20 @@ export const messages = sqliteTable("messages", {
   senderId: text("sender_id").notNull(),
   body: text("body").notNull(),
   readAt: integer("read_at"),             // null = no leído
+  createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
+});
+
+// ─── MENSAJES DE WHATSAPP (historial del bot de pagos/PQRS) ──────────────────
+export const whatsappMessages = sqliteTable("whatsapp_messages", {
+  id: text("id").primaryKey(),
+  unitId: text("unit_id"),                // null si el número no está registrado
+  phone: text("phone").notNull(),
+  direction: text("direction").notNull(), // inbound | outbound
+  type: text("type").notNull(),           // text | image | document
+  content: text("content").notNull().default(""),
+  mediaUrl: text("media_url"),
+  linkedEntityType: text("linked_entity_type"), // pqrs | payment | null
+  linkedEntityId: text("linked_entity_id"),
   createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
 });
 
@@ -197,6 +250,8 @@ export type User = typeof users.$inferSelect;
 export type Unit = typeof units.$inferSelect;
 export type Charge = typeof charges.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
+export type BankMovement = typeof bankMovements.$inferSelect;
+export type WhatsappMessage = typeof whatsappMessages.$inferSelect;
 export type EnergyReading = typeof energyReadings.$inferSelect;
 export type Asset = typeof assets.$inferSelect;
 export type MaintenanceTask = typeof maintenanceTasks.$inferSelect;

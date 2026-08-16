@@ -8,6 +8,34 @@
       "when": 1780966133914,
       "tag": "0000_sticky_elektra",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1783119209466,
+      "tag": "0001_massive_quicksilver",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783650896801,
+      "tag": "0002_clean_susan_delgado",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1783651701767,
+      "tag": "0003_harsh_silver_fox",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1783693399934,
+      "tag": "0004_whole_freak",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { requireResidentContext } from "@/lib/resident-auth";
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
-import { inArray, desc, eq, and } from "drizzle-orm";
+import { inArray, desc } from "drizzle-orm";
 import { Receipt, CheckCircle2, MessageSquare, Bell, TrendingDown } from "lucide-react";
 
 function formatCOP(n: number) {
@@ -47,12 +47,7 @@ export default async function ResidentDashboardPage({
           .orderBy(desc(tenantSchema.charges.createdAt))
       : [],
     db.select().from(tenantSchema.communications)
-      .where(and(
-        // publishedAt IS NOT NULL
-        eq(tenantSchema.communications.publishedAt, tenantSchema.communications.publishedAt)
-      ))
-      .orderBy(desc(tenantSchema.communications.publishedAt))
-      .limit(4),
+      .orderBy(desc(tenantSchema.communications.publishedAt)),
     ctx.unitIds.length
       ? db.select().from(tenantSchema.pqrs)
           .where(inArray(tenantSchema.pqrs.unitId, ctx.unitIds))
@@ -60,8 +55,21 @@ export default async function ResidentDashboardPage({
       : [],
   ]);
 
-  // Filtrar solo publicados
-  const comms = recentCommunications.filter((c) => c.publishedAt !== null);
+  // Filtrar solo publicados y dirigidos a este residente (por rol o envío puntual)
+  const roleKey = ctx.user.role === "tenant" ? "tenant" : "owner";
+  const comms = recentCommunications
+    .filter((c) => {
+      if (c.publishedAt === null) return false;
+
+      let targetUserIds: string[] = [];
+      try { targetUserIds = JSON.parse(c.targetUserIds ?? "[]"); } catch {}
+      if (targetUserIds.length > 0) return targetUserIds.includes(ctx.user.id);
+
+      let targetRoles: string[] = ["all"];
+      try { targetRoles = JSON.parse(c.targetRoles); } catch {}
+      return targetRoles.includes("all") || targetRoles.includes(roleKey);
+    })
+    .slice(0, 4);
 
   // KPIs
   const pendingCharges = charges.filter((c) => c.status === "pending" || c.status === "partial" || c.status === "overdue");

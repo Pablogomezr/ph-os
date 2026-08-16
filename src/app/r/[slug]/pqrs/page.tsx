@@ -33,6 +33,7 @@ export default async function ResidentPqrsPage({
       <PqrsResidentClient
         slug={slug}
         unitIds={ctx.unitIds}
+        readOnly={ctx.readOnly}
         items={items.map((p) => {
           let attachments: string[] = [];
           try { attachments = JSON.parse(p.attachments ?? "[]"); } catch {}

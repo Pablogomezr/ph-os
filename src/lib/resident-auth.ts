@@ -11,12 +11,19 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import { eq, and } from "drizzle-orm";
 import type { User } from "@/lib/db/schema/tenant";
+import { READ_ONLY_ROLES, isReadOnlyRole } from "@/lib/roles";
 
 export type ResidentContext = {
   user:    User;
   unitIds: string[];
   slug:    string;
+  /** true si el usuario es de SOLO LECTURA (rol "observer"). */
+  readOnly: boolean;
 };
+
+// Definición de roles de solo lectura — vive en @/lib/roles (sin dependencias)
+// para poder usarse también desde route handlers públicos.
+export { READ_ONLY_ROLES, isReadOnlyRole };
 
 /**
  * Devuelve el contexto del residente autenticado para un edificio dado.
@@ -52,7 +59,7 @@ export async function getResidentContext(
   let unitIds: string[] = [];
   try { unitIds = JSON.parse(user.unitIds ?? "[]"); } catch {}
 
-  return { user, unitIds, slug };
+  return { user, unitIds, slug, readOnly: isReadOnlyRole(user.role) };
 }
 
 /**

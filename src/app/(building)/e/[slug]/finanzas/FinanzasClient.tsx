@@ -14,9 +14,12 @@ import {
   Plus, Trash2, Loader2, CreditCard, DollarSign,
   TrendingUp, AlertTriangle, Zap, Building2, List,
   CheckCircle2, Clock, XCircle, User, Search,
-  FileText, Award, BarChart2, ChevronDown, ChevronUp,
+  FileText, Award, BarChart2, ChevronDown, ChevronUp, Landmark,
 } from "lucide-react";
-import type { ChargeWithUnit, KPIs, Unit, ResidentUser } from "./types";
+import type { ChargeWithUnit, KPIs, Unit, ResidentUser, PendingReviewPayment, BankMovementRow, PaymentRow } from "./types";
+import ConciliacionView from "./ConciliacionView";
+import PagosView from "./PagosView";
+import EstadoCuentaView from "./EstadoCuentaView";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatCOP(n: number) {
@@ -143,6 +146,12 @@ function NuevoCargoSheet({
               <input
                 id="description" name="description" type="text"
                 placeholder="Detalle opcional…" className={inputCls}
+              />
+            </Field>
+            <Field label="Referencia (FV, RC, NC…)" htmlFor="reference">
+              <input
+                id="reference" name="reference" type="text"
+                placeholder="Ej. FV-8119" className={inputCls}
               />
             </Field>
             <Field label="Monto (COP) *" htmlFor="amount">
@@ -423,6 +432,17 @@ function PagoSheet({
                 id="pay-notes" name="notes" type="text"
                 placeholder="Observaciones opcionales" className={inputCls}
               />
+            </Field>
+
+            <Field label="Soporte de pago (imagen o PDF)" htmlFor="receipt">
+              <input
+                id="receipt" name="receipt" type="file"
+                accept="image/*,.pdf,application/pdf"
+                className="w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-secondary file:text-foreground file:text-xs file:font-medium hover:file:bg-secondary/80"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Opcional. Adjunta el comprobante de la transferencia o consignación.
+              </p>
             </Field>
           </div>
 
@@ -1079,6 +1099,7 @@ function ReportesView({
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function FinanzasClient({
   slug, buildingName, buildingNit, buildingCity, charges, units, residents, kpis,
+  pendingPayments, bankMovements, payments,
 }: {
   slug: string;
   buildingName: string;
@@ -1088,9 +1109,12 @@ export default function FinanzasClient({
   units: Unit[];
   residents: ResidentUser[];
   kpis: KPIs;
+  pendingPayments: PendingReviewPayment[];
+  bankMovements: BankMovementRow[];
+  payments: PaymentRow[];
 }) {
   // Tabs principal
-  const [activeTab,    setActiveTab]    = useState<"charges" | "byUnit" | "reportes">("charges");
+  const [activeTab,    setActiveTab]    = useState<"charges" | "byUnit" | "reportes" | "conciliacion" | "pagos" | "estadoCuenta">("charges");
   const [unitFilter,   setUnitFilter]   = useState<string | null>(null);
 
   // Sheets
@@ -1241,9 +1265,12 @@ export default function FinanzasClient({
       {/* Tab switcher principal */}
       <div className="flex gap-1 border-b border-border">
         {([
-          { v: "charges",  label: "Cargos",          icon: List },
-          { v: "byUnit",   label: "Por unidad",       icon: Building2 },
-          { v: "reportes", label: "Reportes",         icon: BarChart2 },
+          { v: "charges",       label: "Cargos",          icon: List },
+          { v: "byUnit",        label: "Por unidad",       icon: Building2 },
+          { v: "reportes",      label: "Reportes",         icon: BarChart2 },
+          { v: "conciliacion",  label: "Conciliación",     icon: Landmark },
+          { v: "pagos",         label: "Pagos",            icon: CreditCard },
+          { v: "estadoCuenta",  label: "Estado de Cuenta", icon: FileText },
         ] as const).map(({ v, label, icon: Icon }) => (
           <button
             key={v}
@@ -1279,6 +1306,26 @@ export default function FinanzasClient({
           charges={charges}
           residents={residents}
         />
+      )}
+
+      {/* Conciliación bancaria */}
+      {activeTab === "conciliacion" && (
+        <ConciliacionView
+          slug={slug}
+          pendingPayments={pendingPayments}
+          bankMovements={bankMovements}
+          charges={charges}
+        />
+      )}
+
+      {/* Pagos — agregar/editar/eliminar */}
+      {activeTab === "pagos" && (
+        <PagosView slug={slug} payments={payments} />
+      )}
+
+      {/* Estado de Cuenta — formato tipo extracto contable, agrupado por unidad */}
+      {activeTab === "estadoCuenta" && (
+        <EstadoCuentaView units={units} charges={charges} residents={residents} />
       )}
 
       {/* Vista "Todos los cargos" */}
@@ -1377,7 +1424,13 @@ export default function FinanzasClient({
                         {concept.label}
                       </span>
                       {c.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5 max-w-[260px] leading-snug">{c.description}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 max-w-[260px] leading-snug">
+                          {c.description}
+                          {c.reference && <span className="font-mono ml-1">({c.reference})</span>}
+                        </p>
+                      )}
+                      {!c.description && c.reference && (
+                        <p className="text-xs text-muted-foreground font-mono mt-0.5">{c.reference}</p>
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">

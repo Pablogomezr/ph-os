@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 import PwaRegister from "@/components/PwaRegister";
 import "./globals.css";
 
@@ -83,13 +84,15 @@ export default function RootLayout({
     <ClerkProvider>
       <html
         lang="es"
-        className={`${inter.variable} ${jetbrainsMono.variable} dark`}
+        className={`${inter.variable} ${jetbrainsMono.variable}`}
         suppressHydrationWarning
       >
         <body className="min-h-screen bg-background text-foreground font-[var(--font-inter)] antialiased">
-          {children}
-          <Toaster richColors theme="dark" position="top-right" />
-          <PwaRegister />
+          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+            {children}
+            <Toaster richColors position="top-right" />
+            <PwaRegister />
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

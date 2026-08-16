@@ -9,6 +9,7 @@ import {
   User, Building2, ChevronLeft, Menu, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface ResidentSidebarProps {
   slug:         string;
@@ -124,6 +125,7 @@ export default function ResidentSidebar({
 
         {/* Footer */}
         <div className="p-3 border-t border-sidebar-border space-y-1">
+          <ThemeToggle />
           <div className="px-3 py-1.5 flex items-center gap-2.5">
             <UserButton
               appearance={{ elements: { avatarBox: "w-7 h-7" } }}

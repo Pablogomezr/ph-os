@@ -49,50 +49,50 @@
 }
 
 /* ============================================
-   PROPIEDAD HORIZONTAL OS — Dark Fintech Theme
+   PROPIEDAD HORIZONTAL OS — Fintech Theme (claro/oscuro)
    ============================================ */
 :root {
-  /* Dark mode is always ON — no light mode */
-  --background: #09090B;        /* zinc-950 — fondo de página */
-  --foreground: #FAFAFA;        /* zinc-50 — texto principal */
-  --card: #18181B;              /* zinc-900 — cards y panels */
-  --card-foreground: #FAFAFA;
-  --popover: #18181B;
-  --popover-foreground: #FAFAFA;
+  /* Tema claro (default) */
+  --background: #F8F9FB;        /* fondo de página */
+  --foreground: #18181B;        /* zinc-900 — texto principal */
+  --card: #FFFFFF;              /* cards y panels */
+  --card-foreground: #18181B;
+  --popover: #FFFFFF;
+  --popover-foreground: #18181B;
   --primary: #6366F1;           /* indigo-500 — botones CTA, nav activo */
   --primary-foreground: #FFFFFF;
-  --secondary: #27272A;         /* zinc-800 — surface elevado */
-  --secondary-foreground: #FAFAFA;
-  --muted: #27272A;             /* zinc-800 */
-  --muted-foreground: #A1A1AA;  /* zinc-400 — texto secundario */
-  --accent: #22D3EE;            /* cyan-400 — datos de energía */
-  --accent-foreground: #09090B;
-  --destructive: #EF4444;       /* red-500 — vencido, errores */
-  --border: #3F3F46;            /* zinc-700 — bordes */
-  --input: #27272A;             /* zinc-800 — fondo inputs */
+  --secondary: #F0F0F3;         /* zinc-100 — surface elevado */
+  --secondary-foreground: #18181B;
+  --muted: #F0F0F3;
+  --muted-foreground: #71717A;  /* zinc-500 — texto secundario */
+  --accent: #0891B2;            /* cyan-600 — mejor contraste sobre blanco */
+  --accent-foreground: #FFFFFF;
+  --destructive: #DC2626;       /* red-600 — vencido, errores */
+  --border: #E4E4E7;            /* zinc-200 — bordes */
+  --input: #F0F0F3;             /* zinc-100 — fondo inputs */
   --ring: #6366F1;              /* indigo — focus ring */
   /* Semantic colors custom */
-  --success: #10B981;           /* emerald-500 — pagado, positivo */
-  --warning: #F59E0B;           /* amber-500 — pendiente */
+  --success: #059669;           /* emerald-600 — pagado, positivo */
+  --warning: #D97706;           /* amber-600 — pendiente */
   /* Charts — fintech palette */
-  --chart-1: #6366F1;           /* indigo */
-  --chart-2: #22D3EE;           /* cyan */
-  --chart-3: #10B981;           /* emerald */
-  --chart-4: #F59E0B;           /* amber */
-  --chart-5: #EF4444;           /* red */
+  --chart-1: #6366F1;
+  --chart-2: #0891B2;
+  --chart-3: #059669;
+  --chart-4: #D97706;
+  --chart-5: #DC2626;
   --radius: 0.5rem;
   /* Sidebar */
-  --sidebar: #111113;
-  --sidebar-foreground: #FAFAFA;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #18181B;
   --sidebar-primary: #6366F1;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1E1E2A;
-  --sidebar-accent-foreground: #A1A1AA;
-  --sidebar-border: #27272A;
+  --sidebar-accent: #F0F0F3;
+  --sidebar-accent-foreground: #71717A;
+  --sidebar-border: #E4E4E7;
   --sidebar-ring: #6366F1;
 }
 
-/* Keep .dark class pointing to same values so shadcn works */
+/* Tema oscuro — se activa agregando la clase .dark al <html> (next-themes) */
 .dark {
   --background: #09090B;
   --foreground: #FAFAFA;
@@ -136,5 +136,8 @@
   }
   html {
     @apply font-sans;
+  }
+  html, body, * {
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   }
 }

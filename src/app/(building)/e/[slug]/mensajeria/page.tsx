@@ -14,10 +14,15 @@ export default async function MensajeriaPage({
 
   const db = await getTenantDb(slug);
 
-  const rawItems = await db
-    .select()
-    .from(tenantSchema.communications)
-    .orderBy(desc(tenantSchema.communications.createdAt));
+  const [rawItems, allUsers] = await Promise.all([
+    db.select().from(tenantSchema.communications).orderBy(desc(tenantSchema.communications.createdAt)),
+    db.select().from(tenantSchema.users),
+  ]);
+
+  const userMap = new Map(allUsers.map((u) => [u.id, u.name]));
+  const tenants = allUsers
+    .filter((u) => u.role === "tenant" && u.active === 1)
+    .map((u) => ({ id: u.id, name: u.name }));
 
   // ─── Consecutivo: orden cronológico de creación ───────────────────────────
   const ticketMap = new Map(
@@ -32,6 +37,10 @@ export default async function MensajeriaPage({
     try { targetRoles = JSON.parse(c.targetRoles); } catch {}
     let attachmentUrls: string[] = [];
     try { attachmentUrls = JSON.parse(c.attachmentUrls ?? "[]"); } catch {}
+    let targetUserIds: string[] = [];
+    try { targetUserIds = JSON.parse(c.targetUserIds ?? "[]"); } catch {}
+    const targetUsers = targetUserIds
+      .map((id) => ({ id, name: userMap.get(id) ?? "Usuario eliminado" }));
     return {
       id:           c.id,
       ticketNumber: ticketMap.get(c.id) ?? 0,
@@ -39,6 +48,7 @@ export default async function MensajeriaPage({
       body:         c.body,
       type:         c.type,
       targetRoles,
+      targetUsers,
       attachmentUrls,
       publishedAt:  c.publishedAt ?? null,
       isPublished:  !!c.publishedAt,
@@ -62,6 +72,7 @@ export default async function MensajeriaPage({
         slug={slug}
         items={items}
         kpis={kpis}
+        tenants={tenants}
       />
     </div>
   );

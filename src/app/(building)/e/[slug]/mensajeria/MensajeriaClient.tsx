@@ -4,14 +4,14 @@ import {
   useActionState, useState, useTransition, useEffect, useRef, useMemo,
 } from "react";
 import {
-  createComunicado, publishComunicado, unpublishComunicado, deleteComunicado,
+  createComunicado, updateComunicado, publishComunicado, unpublishComunicado, deleteComunicado,
 } from "./actions";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import {
   Plus, Loader2, Trash2, Send, FileText, Megaphone,
-  ScrollText, ReceiptText, Eye, EyeOff, BookOpen, Paperclip, Download,
+  ScrollText, ReceiptText, Eye, EyeOff, BookOpen, Paperclip, Download, Search, Users, Pencil,
 } from "lucide-react";
 import type { ComunicadoView, ComunicadosKPIs, ComunicadoFormState } from "./types";
 import { attachmentFileName } from "@/lib/attachment-utils";
@@ -67,6 +67,16 @@ const TARGET_LABELS: Record<string, string> = {
   '["owner","tenant"]': "Propietarios y arrendatarios",
 };
 
+function targetLabel(item: ComunicadoView): string {
+  if (item.targetUsers.length > 0) {
+    if (item.targetUsers.length === 1) return `Arrendatario: ${item.targetUsers[0].name}`;
+    return `${item.targetUsers.length} arrendatarios específicos`;
+  }
+  return TARGET_LABELS[item.targetRoles.join(",")] ??
+    TARGET_LABELS[JSON.stringify(item.targetRoles)] ??
+    "Todos los residentes";
+}
+
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 function KPICard({ label, value, icon: Icon, accent }: {
   label: string; value: number;
@@ -83,31 +93,59 @@ function KPICard({ label, value, icon: Icon, accent }: {
   );
 }
 
-// ─── NuevoComunicadoSheet ─────────────────────────────────────────────────────
-function NuevoComunicadoSheet({ open, onClose, formAction, state, isPending }: {
+// ─── ComunicadoSheet (crear o editar) ─────────────────────────────────────────
+function ComunicadoSheet({ open, onClose, formAction, state, isPending, tenants, editing }: {
   open: boolean; onClose: () => void;
   formAction: (p: FormData) => void;
   state: ComunicadoFormState; isPending: boolean;
+  tenants: { id: string; name: string }[];
+  editing?: ComunicadoView | null;
 }) {
-  const [charCount, setCharCount] = useState(0);
+  const isEdit = !!editing;
+  const [charCount, setCharCount] = useState(editing?.body.length ?? 0);
+  const [targetMode, setTargetMode] = useState<"role" | "specific">(
+    editing && editing.targetUsers.length > 0 ? "specific" : "role"
+  );
+  const [tenantSearch, setTenantSearch] = useState("");
+  const editUserIds = useMemo(
+    () => new Set((editing?.targetUsers ?? []).map((u) => u.id)),
+    [editing]
+  );
 
   useEffect(() => {
-    if (!open) setCharCount(0);
-  }, [open]);
+    if (!open) {
+      setCharCount(editing?.body.length ?? 0);
+      setTargetMode(editing && editing.targetUsers.length > 0 ? "specific" : "role");
+      setTenantSearch("");
+    }
+  }, [open, editing]);
+
+  const filteredTenants = useMemo(() => {
+    const q = tenantSearch.trim().toLowerCase();
+    if (!q) return tenants;
+    return tenants.filter((t) => t.name.toLowerCase().includes(q));
+  }, [tenants, tenantSearch]);
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent className="bg-card border-border w-full sm:max-w-lg flex flex-col p-0">
         <div className="p-6 border-b border-border">
           <SheetHeader>
-            <SheetTitle className="text-foreground">Nuevo Comunicado</SheetTitle>
+            <SheetTitle className="text-foreground">
+              {isEdit ? "Editar comunicado" : "Nuevo Comunicado"}
+            </SheetTitle>
             <SheetDescription className="text-muted-foreground">
-              Se guardará como borrador. Publícalo cuando esté listo.
+              {isEdit
+                ? (editing!.isPublished
+                    ? "Los cambios se reflejarán de inmediato para los residentes."
+                    : "Edita el borrador. Publícalo cuando esté listo.")
+                : "Se guardará como borrador. Publícalo cuando esté listo."}
             </SheetDescription>
           </SheetHeader>
         </div>
 
         <form action={formAction} className="flex flex-col flex-1 min-h-0">
+          {isEdit && <input type="hidden" name="id" value={editing!.id} />}
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {state?.error && (
               <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-3 py-2 rounded-lg">
@@ -117,7 +155,7 @@ function NuevoComunicadoSheet({ open, onClose, formAction, state, isPending }: {
 
             <div className="grid grid-cols-2 gap-3">
               <Field label="Tipo *" htmlFor="type">
-                <select id="type" name="type" required className={inputCls}>
+                <select id="type" name="type" required className={inputCls} defaultValue={editing?.type ?? ""}>
                   <option value="">Seleccionar…</option>
                   <option value="announcement">📢 Anuncio</option>
                   <option value="circular">📜 Circular</option>
@@ -126,7 +164,12 @@ function NuevoComunicadoSheet({ open, onClose, formAction, state, isPending }: {
                 </select>
               </Field>
               <Field label="Dirigido a" htmlFor="targetRoles">
-                <select id="targetRoles" name="targetRoles" defaultValue='["all"]' className={inputCls}>
+                <select
+                  id="targetRoles" name="targetRoles"
+                  defaultValue={editing && editing.targetUsers.length === 0 ? JSON.stringify(editing.targetRoles) : '["all"]'}
+                  className={inputCls}
+                  disabled={targetMode === "specific"}
+                >
                   <option value='["all"]'>Todos</option>
                   <option value='["owner"]'>Propietarios</option>
                   <option value='["tenant"]'>Arrendatarios</option>
@@ -135,10 +178,51 @@ function NuevoComunicadoSheet({ open, onClose, formAction, state, isPending }: {
               </Field>
             </div>
 
+            <input type="hidden" name="targetMode" value={targetMode} />
+            <div className="flex gap-1 bg-secondary/40 p-1 rounded-lg w-fit">
+              <button type="button" onClick={() => setTargetMode("role")}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${targetMode === "role" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                Por categoría
+              </button>
+              <button type="button" onClick={() => setTargetMode("specific")}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${targetMode === "specific" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                Arrendatarios puntuales
+              </button>
+            </div>
+
+            {targetMode === "specific" && (
+              <Field label="Arrendatarios destinatarios *" htmlFor="targetUserIds">
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <input
+                      type="text" value={tenantSearch} onChange={(e) => setTenantSearch(e.target.value)}
+                      placeholder="Buscar arrendatario…"
+                      className="w-full bg-input border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto border border-border rounded-lg divide-y divide-border">
+                    {filteredTenants.map((t) => (
+                      <label key={t.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary/40 cursor-pointer">
+                        <input type="checkbox" name="targetUserIds" value={t.id} defaultChecked={editUserIds.has(t.id)} className="rounded border-border" />
+                        <span className="text-foreground">{t.name}</span>
+                      </label>
+                    ))}
+                    {filteredTenants.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-4">
+                        {tenants.length === 0 ? "No hay arrendatarios registrados." : "Sin resultados."}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </Field>
+            )}
+
             <Field label="Título *" htmlFor="title">
               <input
                 id="title" name="title" type="text" required className={inputCls}
                 placeholder="Ej. Reunión de Asamblea General — Junio 2026"
+                defaultValue={editing?.title ?? ""}
               />
             </Field>
 
@@ -150,11 +234,18 @@ function NuevoComunicadoSheet({ open, onClose, formAction, state, isPending }: {
               <textarea
                 id="body" name="body" rows={8} required className={inputCls}
                 placeholder="Estimados residentes,&#10;&#10;Por medio del presente comunicado…"
+                defaultValue={editing?.body ?? ""}
                 onChange={(e) => setCharCount(e.target.value.length)}
               />
             </Field>
 
-            <Field label="Documentos adjuntos" htmlFor="attachments">
+            <Field
+              label="Documentos adjuntos"
+              htmlFor="attachments"
+              hint={isEdit && editing!.attachmentUrls.length > 0
+                ? `Ya tiene ${editing!.attachmentUrls.length} adjunto(s). Los que agregues aquí se sumarán.`
+                : undefined}
+            >
               <input
                 id="attachments" name="attachments" type="file" multiple
                 className="w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-secondary file:text-foreground file:text-xs file:font-medium hover:file:bg-secondary/80"
@@ -171,7 +262,9 @@ function NuevoComunicadoSheet({ open, onClose, formAction, state, isPending }: {
               className="flex-1 flex items-center justify-center gap-2 bg-primary text-white py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
               {isPending
                 ? <><Loader2 className="w-4 h-4 animate-spin" />Guardando…</>
-                : <><FileText className="w-4 h-4" />Guardar borrador</>}
+                : isEdit
+                  ? <><Pencil className="w-4 h-4" />Guardar cambios</>
+                  : <><FileText className="w-4 h-4" />Guardar borrador</>}
             </button>
           </div>
         </form>
@@ -181,8 +274,9 @@ function NuevoComunicadoSheet({ open, onClose, formAction, state, isPending }: {
 }
 
 // ─── DetailSheet (leer comunicado completo) ───────────────────────────────────
-function DetailSheet({ item, open, onClose, slug }: {
-  item: ComunicadoView | null; open: boolean; onClose: () => void; slug: string;
+function DetailSheet({ item, open, onClose, onEdit, slug }: {
+  item: ComunicadoView | null; open: boolean; onClose: () => void;
+  onEdit: (item: ComunicadoView) => void; slug: string;
 }) {
   const [publishing, startPublishTransition] = useTransition();
 
@@ -190,9 +284,7 @@ function DetailSheet({ item, open, onClose, slug }: {
 
   const tp = TYPE_MAP[item.type] ?? TYPE_MAP.announcement;
   const TypeIcon = tp.icon;
-  const target = TARGET_LABELS[item.targetRoles.join(",")] ??
-    TARGET_LABELS[JSON.stringify(item.targetRoles)] ??
-    "Todos los residentes";
+  const target = targetLabel(item);
 
   function handlePublish() {
     startPublishTransition(async () => {
@@ -265,8 +357,12 @@ function DetailSheet({ item, open, onClose, slug }: {
 
         <div className="flex gap-3 p-6 border-t border-border bg-card shrink-0">
           <button type="button" onClick={onClose}
-            className="flex-1 border border-border text-muted-foreground py-2.5 rounded-lg text-sm hover:bg-secondary transition-colors">
+            className="border border-border text-muted-foreground px-4 py-2.5 rounded-lg text-sm hover:bg-secondary transition-colors">
             Cerrar
+          </button>
+          <button type="button" onClick={() => onEdit(item!)}
+            className="flex items-center justify-center gap-2 border border-primary/40 text-primary px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/10 transition-colors">
+            <Pencil className="w-4 h-4" /> Editar
           </button>
           {item.isPublished ? (
             <button
@@ -293,13 +389,15 @@ function DetailSheet({ item, open, onClose, slug }: {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function MensajeriaClient({
-  slug, items, kpis,
+  slug, items, kpis, tenants,
 }: {
   slug: string;
   items: ComunicadoView[];
   kpis: ComunicadosKPIs;
+  tenants: { id: string; name: string }[];
 }) {
   const [openNuevo,    setOpenNuevo]    = useState(false);
+  const [editItem,     setEditItem]     = useState<ComunicadoView | null>(null);
   const [detailItem,   setDetailItem]   = useState<ComunicadoView | null>(null);
   const [typeFilter,   setTypeFilter]   = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
@@ -316,6 +414,22 @@ export default function MensajeriaClient({
       setOpenNuevo(false);
     }
   }, [state]);
+
+  const [editState, editAction, editPending] =
+    useActionState<ComunicadoFormState, FormData>(updateComunicado.bind(null, slug), null);
+  const editHandledRef = useRef<ComunicadoFormState>(null);
+  useEffect(() => {
+    if (editState?.success && editState !== editHandledRef.current) {
+      editHandledRef.current = editState;
+      setEditItem(null);
+    }
+  }, [editState]);
+
+  // Abrir edición desde el detalle: cerrar detalle y abrir el sheet de edición.
+  function openEdit(item: ComunicadoView) {
+    setDetailItem(null);
+    setEditItem(item);
+  }
 
   const filtered = useMemo(() => {
     const ticketQuery = ticketFilter.trim().replace(/^COM-?/i, "").replace(/^0+/, "");
@@ -421,8 +535,7 @@ export default function MensajeriaClient({
           {filtered.map((c) => {
             const tp = TYPE_MAP[c.type] ?? TYPE_MAP.announcement;
             const TypeIcon = tp.icon;
-            const target = TARGET_LABELS[c.targetRoles.join(",")] ??
-              TARGET_LABELS[JSON.stringify(c.targetRoles)] ?? "Todos";
+            const target = targetLabel(c);
             return (
               <div
                 key={c.id}
@@ -444,7 +557,10 @@ export default function MensajeriaClient({
                           <span className="text-muted-foreground/40">·</span>
                           <span className={`text-xs font-semibold ${tp.color}`}>{tp.label}</span>
                           <span className="text-muted-foreground/40">·</span>
-                          <span className="text-xs text-muted-foreground">{target}</span>
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            {c.targetUsers.length > 0 && <Users className="w-3 h-3" />}
+                            {target}
+                          </span>
                         </div>
                         <p className="font-semibold text-foreground leading-tight flex items-center gap-1.5">
                           {c.title}
@@ -482,6 +598,10 @@ export default function MensajeriaClient({
                     className="text-xs px-3 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
                     {c.isPublished ? "Leer" : "Leer / Publicar"}
                   </button>
+                  <button onClick={() => setEditItem(c)}
+                    className="flex items-center gap-1 text-xs px-3 py-1 rounded-lg bg-secondary text-foreground hover:bg-secondary/70 transition-colors">
+                    <Pencil className="w-3 h-3" /> Editar
+                  </button>
                   <button onClick={() => handleDelete(c.id)} disabled={deletingId === c.id}
                     className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50">
                     {deletingId === c.id
@@ -496,17 +616,30 @@ export default function MensajeriaClient({
       )}
 
       {/* Sheets */}
-      <NuevoComunicadoSheet
+      <ComunicadoSheet
         open={openNuevo}
         onClose={() => setOpenNuevo(false)}
         formAction={formAction}
         state={state}
         isPending={isPending}
+        tenants={tenants}
+        editing={null}
+      />
+      <ComunicadoSheet
+        key={editItem?.id ?? "edit"}
+        open={!!editItem}
+        onClose={() => setEditItem(null)}
+        formAction={editAction}
+        state={editState}
+        isPending={editPending}
+        tenants={tenants}
+        editing={editItem}
       />
       <DetailSheet
         item={detailItem}
         open={!!detailItem}
         onClose={() => setDetailItem(null)}
+        onEdit={openEdit}
         slug={slug}
       />
     </>

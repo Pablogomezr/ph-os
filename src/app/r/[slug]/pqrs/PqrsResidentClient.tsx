@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useEffect, useRef } from "react";
-import { Plus, MessageSquare, X, CheckCircle2, Paperclip, Download } from "lucide-react";
+import { Plus, MessageSquare, X, CheckCircle2, Paperclip, Download, Eye } from "lucide-react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
@@ -30,6 +30,8 @@ interface PqrsItem {
 
 interface Props {
   slug: string; unitIds: string[]; items: PqrsItem[];
+  /** Cuenta de solo consulta (rol Observador): ve sus PQRS pero no puede radicar. */
+  readOnly?: boolean;
 }
 
 function formatDate(ts: number) {
@@ -43,7 +45,7 @@ function formatTicket(n: number) {
   return `PQR-${String(n).padStart(4, "0")}`;
 }
 
-export default function PqrsResidentClient({ slug, unitIds, items }: Props) {
+export default function PqrsResidentClient({ slug, unitIds, items, readOnly = false }: Props) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<PqrsItem | null>(null);
   const [ticketFilter, setTicketFilter] = useState("");
@@ -75,12 +77,18 @@ export default function PqrsResidentClient({ slug, unitIds, items }: Props) {
           <h1 className="text-2xl font-bold text-foreground">Mis PQRS</h1>
           <p className="text-muted-foreground text-sm mt-1">Peticiones, quejas, reclamos y sugerencias</p>
         </div>
-        <button
-          onClick={() => setOpen(true)}
-          className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />Nueva solicitud
-        </button>
+        {readOnly ? (
+          <span className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-secondary text-muted-foreground">
+            <Eye className="w-3.5 h-3.5" /> Solo consulta
+          </span>
+        ) : (
+          <button
+            onClick={() => setOpen(true)}
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />Nueva solicitud
+          </button>
+        )}
       </div>
 
       {/* Filtro por consecutivo */}
@@ -98,13 +106,19 @@ export default function PqrsResidentClient({ slug, unitIds, items }: Props) {
       {items.length === 0 ? (
         <div className="bg-card border border-border rounded-xl p-12 text-center">
           <MessageSquare className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">No has radicado ninguna solicitud aún.</p>
-          <button
-            onClick={() => setOpen(true)}
-            className="mt-4 text-sm text-primary hover:underline"
-          >
-            Radica tu primera solicitud →
-          </button>
+          <p className="text-sm text-muted-foreground">
+            {readOnly
+              ? "No hay solicitudes radicadas para tu unidad."
+              : "No has radicado ninguna solicitud aún."}
+          </p>
+          {!readOnly && (
+            <button
+              onClick={() => setOpen(true)}
+              className="mt-4 text-sm text-primary hover:underline"
+            >
+              Radica tu primera solicitud →
+            </button>
+          )}
         </div>
       ) : filteredItems.length === 0 ? (
         <div className="bg-card border border-border rounded-xl p-8 text-center">

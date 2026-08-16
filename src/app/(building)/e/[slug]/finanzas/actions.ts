@@ -5,10 +5,38 @@ import { auth } from "@clerk/nextjs/server";
 import { eq, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { uploadAttachments } from "@/lib/blob-upload";
 
 export type ChargeFormState     = { error?: string; success?: boolean } | null;
 export type MassChargeFormState = { error?: string; success?: boolean; count?: number } | null;
 export type PaymentFormState    = { error?: string; success?: boolean } | null;
+
+// Recalcula y guarda el estado del cargo (paid/partial/pending) según la
+// suma actual de sus pagos — usado tras editar o eliminar un pago.
+export async function recalcChargeStatus(
+  db: Awaited<ReturnType<typeof getTenantDb>>,
+  chargeId: string
+): Promise<void> {
+  const charge = await db
+    .select({ amount: tenantSchema.charges.amount })
+    .from(tenantSchema.charges)
+    .where(eq(tenantSchema.charges.id, chargeId))
+    .get();
+  if (!charge) return;
+
+  const totalResult = await db
+    .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+    .from(tenantSchema.payments)
+    .where(eq(tenantSchema.payments.chargeId, chargeId))
+    .get();
+  const totalPaid = totalResult?.total ?? 0;
+
+  const status = totalPaid <= 0 ? "pending" : totalPaid >= charge.amount - 0.01 ? "paid" : "partial";
+  await db
+    .update(tenantSchema.charges)
+    .set({ status, updatedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(tenantSchema.charges.id, chargeId));
+}
 
 const VALID_CONCEPTS = ["ordinary", "extraordinary", "energy", "water", "audit", "other"];
 
@@ -24,6 +52,7 @@ export async function createCharge(
   const unitId      = (formData.get("unitId")      as string)?.trim();
   const concept     = (formData.get("concept")     as string)?.trim();
   const description = (formData.get("description") as string)?.trim() || null;
+  const reference   = (formData.get("reference")   as string)?.trim() || null;
   const amountRaw   =  formData.get("amount")      as string;
   const dueDateStr  =  formData.get("dueDate")     as string;
 
@@ -43,6 +72,7 @@ export async function createCharge(
     unitId,
     concept,
     description,
+    reference,
     amount,
     dueDate,
     status:    "pending",
@@ -165,9 +195,14 @@ export async function recordPayment(
 
   const now = Math.floor(Date.now() / 1000);
 
+  const receiptFile = formData.get("receipt");
+  const receiptUrl = receiptFile instanceof File && receiptFile.size > 0
+    ? (await uploadAttachments([receiptFile], `payments/${slug}`))[0] ?? null
+    : null;
+
   await db.insert(tenantSchema.payments).values({
     id: crypto.randomUUID(), chargeId, unitId, amount,
-    paymentDate: now, method, reference, notes,
+    paymentDate: now, method, reference, notes, receiptUrl,
     createdBy: userId, createdAt: now,
   });
 
@@ -182,6 +217,90 @@ export async function recordPayment(
   revalidatePath(`/e/${slug}/finanzas`);
   revalidatePath(`/e/${slug}/dashboard`);
   return { success: true };
+}
+
+// ─── Editar pago ──────────────────────────────────────────────────────────────
+export async function updatePayment(
+  slug: string,
+  paymentId: string,
+  _prev: PaymentFormState,
+  formData: FormData
+): Promise<PaymentFormState> {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+
+  const amountRaw   =  formData.get("amount")      as string;
+  const method      = (formData.get("method")      as string) || "transfer";
+  const reference   = (formData.get("reference")   as string)?.trim() || null;
+  const notes       = (formData.get("notes")       as string)?.trim() || null;
+  const dateStr     =  formData.get("paymentDate") as string;
+
+  const amount = parseFloat(amountRaw);
+  if (isNaN(amount) || amount <= 0) return { error: "El monto del pago debe ser mayor a $0." };
+
+  const db = await getTenantDb(slug);
+
+  const payment = await db
+    .select().from(tenantSchema.payments)
+    .where(eq(tenantSchema.payments.id, paymentId))
+    .get();
+  if (!payment) return { error: "Pago no encontrado." };
+
+  const charge = await db
+    .select().from(tenantSchema.charges)
+    .where(eq(tenantSchema.charges.id, payment.chargeId))
+    .get();
+  if (!charge) return { error: "El cargo asociado a este pago ya no existe." };
+
+  // Saldo disponible excluyendo este mismo pago
+  const otherResult = await db
+    .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+    .from(tenantSchema.payments)
+    .where(eq(tenantSchema.payments.chargeId, payment.chargeId))
+    .get();
+  const otherPaid = (otherResult?.total ?? 0) - payment.amount;
+  const remaining = charge.amount - otherPaid;
+
+  if (amount > remaining + 0.01) {
+    const fmt = (n: number) =>
+      new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
+    return { error: `El pago (${fmt(amount)}) supera el saldo del cargo (${fmt(remaining)}).` };
+  }
+
+  const paymentDate = dateStr
+    ? Math.floor(new Date(dateStr + "T12:00:00").getTime() / 1000)
+    : payment.paymentDate;
+
+  await db.update(tenantSchema.payments).set({
+    amount, method, reference, notes, paymentDate,
+  }).where(eq(tenantSchema.payments.id, paymentId));
+
+  await recalcChargeStatus(db, payment.chargeId);
+
+  revalidatePath(`/e/${slug}/finanzas`);
+  revalidatePath(`/e/${slug}/dashboard`);
+  return { success: true };
+}
+
+// ─── Eliminar pago ────────────────────────────────────────────────────────────
+export async function deletePayment(slug: string, paymentId: string) {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+
+  const db = await getTenantDb(slug);
+
+  const payment = await db
+    .select({ chargeId: tenantSchema.payments.chargeId })
+    .from(tenantSchema.payments)
+    .where(eq(tenantSchema.payments.id, paymentId))
+    .get();
+  if (!payment) return;
+
+  await db.delete(tenantSchema.payments).where(eq(tenantSchema.payments.id, paymentId));
+  await recalcChargeStatus(db, payment.chargeId);
+
+  revalidatePath(`/e/${slug}/finanzas`);
+  revalidatePath(`/e/${slug}/dashboard`);
 }
 
 // ─── Eliminar cargo ───────────────────────────────────────────────────────────

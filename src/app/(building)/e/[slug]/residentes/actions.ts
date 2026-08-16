@@ -20,7 +20,7 @@ export async function createResident(
   const email   = (formData.get("email") as string)?.trim().toLowerCase();
   const role    = (formData.get("role") as string) || "resident";
   const phone   = (formData.get("phone") as string)?.trim() || null;
-  const unitId  = (formData.get("unitId") as string)?.trim() || null;
+  const unitIds = formData.getAll("unitIds") as string[];
 
   if (!name)  return { error: "El nombre es requerido." };
   if (!email) return { error: "El email es requerido." };
@@ -40,7 +40,6 @@ export async function createResident(
   if (existing) return { error: `El email "${email}" ya está registrado en este edificio.` };
 
   const now = Math.floor(Date.now() / 1000);
-  const unitIds = unitId ? JSON.stringify([unitId]) : "[]";
 
   await db.insert(tenantSchema.users).values({
     id:        crypto.randomUUID(),
@@ -48,11 +47,59 @@ export async function createResident(
     email,
     role,
     phone,
-    unitIds,
+    unitIds: JSON.stringify(unitIds),
     active:    1,
     createdAt: now,
     updatedAt: now,
   });
+
+  revalidatePath(`/e/${slug}/residentes`);
+  revalidatePath(`/e/${slug}/dashboard`);
+  return { success: true };
+}
+
+export async function updateResident(
+  slug: string,
+  residentId: string,
+  _prev: ResidentFormState,
+  formData: FormData
+): Promise<ResidentFormState> {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+
+  const name    = (formData.get("name") as string)?.trim();
+  const email   = (formData.get("email") as string)?.trim().toLowerCase();
+  const role    = (formData.get("role") as string) || "resident";
+  const phone   = (formData.get("phone") as string)?.trim() || null;
+  const unitIds = formData.getAll("unitIds") as string[];
+
+  if (!name)  return { error: "El nombre es requerido." };
+  if (!email) return { error: "El email es requerido." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: "El email no es válido." };
+  }
+
+  const db = await getTenantDb(slug);
+
+  // Email único por edificio (excluyendo el propio registro)
+  const existing = await db
+    .select({ id: tenantSchema.users.id })
+    .from(tenantSchema.users)
+    .where(eq(tenantSchema.users.email, email))
+    .get();
+
+  if (existing && existing.id !== residentId) {
+    return { error: `El email "${email}" ya está registrado en este edificio.` };
+  }
+
+  await db.update(tenantSchema.users).set({
+    name,
+    email,
+    role,
+    phone,
+    unitIds: JSON.stringify(unitIds),
+    updatedAt: Math.floor(Date.now() / 1000),
+  }).where(eq(tenantSchema.users.id, residentId));
 
   revalidatePath(`/e/${slug}/residentes`);
   revalidatePath(`/e/${slug}/dashboard`);

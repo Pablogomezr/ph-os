@@ -9,6 +9,9 @@ export type ComunicadoView = {
   body: string;
   type: string;          // announcement | circular | acta | invoice
   targetRoles: string[]; // parsed JSON
+  // Si tiene elementos, el comunicado se dirige SOLO a estos residentes
+  // puntuales (ignora targetRoles) — nombres ya resueltos para mostrar en UI.
+  targetUsers: { id: string; name: string }[];
   attachmentUrls: string[];
   publishedAt: number | null;
   isPublished: boolean;

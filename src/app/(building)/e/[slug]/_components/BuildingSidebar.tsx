@@ -7,10 +7,11 @@ import { UserButton } from "@clerk/nextjs";
 import {
   LayoutDashboard, Home, Users, CircleDollarSign,
   Zap, Wrench, MessageCircle, Bell, FileSpreadsheet,
-  ChevronLeft, Building2, CreditCard, HardHat, Menu, X,
+  ChevronLeft, Building2, CreditCard, HardHat, Menu, X, Smartphone,
 } from "lucide-react";
 import type { Module } from "@/lib/modules/checker";
 import { cn } from "@/lib/utils";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface NavItem {
   href: string;
@@ -25,6 +26,7 @@ interface BuildingSidebarProps {
   city: string | null;
   activeModules: Module[];
   isSuperadmin: boolean;
+  unreadWhatsapp?: number;
 }
 
 function buildNavItems(slug: string, activeModules: Module[]): NavItem[] {
@@ -38,6 +40,7 @@ function buildNavItems(slug: string, activeModules: Module[]): NavItem[] {
     { href: `${base}/mantenimiento`,label: "Mantenimiento",icon: Wrench,            module: "mantenimiento" },
     { href: `${base}/pqrs`,         label: "PQRS",         icon: MessageCircle,     module: "pqrs" },
     { href: `${base}/mensajeria`,   label: "Mensajería",   icon: Bell,              module: "mensajeria" },
+    { href: `${base}/whatsapp`,     label: "WhatsApp",     icon: Smartphone },
     { href: `${base}/contabilidad`, label: "Contabilidad", icon: FileSpreadsheet,   module: "contabilidad" },
     { href: `${base}/billing`,      label: "Facturación",  icon: CreditCard },
     { href: `${base}/operadores`,   label: "Operadores",   icon: HardHat,           module: "energia" },
@@ -54,6 +57,7 @@ export default function BuildingSidebar({
   city,
   activeModules,
   isSuperadmin,
+  unreadWhatsapp = 0,
 }: BuildingSidebarProps) {
   const pathname = usePathname();
   const navItems = buildNavItems(slug, activeModules);
@@ -122,6 +126,7 @@ export default function BuildingSidebar({
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
+            const isWhatsapp = item.href.endsWith("/whatsapp");
             return (
               <Link
                 key={item.href}
@@ -134,7 +139,12 @@ export default function BuildingSidebar({
                 )}
               >
                 <item.icon className="w-4 h-4 shrink-0" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {isWhatsapp && unreadWhatsapp > 0 && (
+                  <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#EF4444] text-white text-[10px] font-bold leading-none">
+                    {unreadWhatsapp > 99 ? "99+" : unreadWhatsapp}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -142,6 +152,7 @@ export default function BuildingSidebar({
 
         {/* Footer */}
         <div className="p-3 border-t border-sidebar-border space-y-1">
+          <ThemeToggle />
           {isSuperadmin && (
             <Link
               href="/superadmin"

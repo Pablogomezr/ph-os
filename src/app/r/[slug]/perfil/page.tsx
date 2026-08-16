@@ -7,6 +7,7 @@ import { User, Phone, Mail, Building2, Hash } from "lucide-react";
 function roleLabel(role: string) {
   if (role === "resident") return "Propietario";
   if (role === "tenant") return "Arrendatario";
+  if (role === "observer") return "Propietario (solo consulta)";
   if (role === "admin") return "Administrador";
   return "Técnico";
 }

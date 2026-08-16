@@ -13,7 +13,7 @@ export async function sendWhatsAppMessage(
   to: string,
   body: string
 ): Promise<void> {
-  await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
+  const res = await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token()}`,
@@ -26,6 +26,11 @@ export async function sendWhatsAppMessage(
       text: { body },
     }),
   });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Meta rechazó el mensaje de WhatsApp (${res.status}): ${detail}`);
+  }
 }
 
 export async function downloadWhatsAppMedia(
@@ -54,6 +59,7 @@ export type IncomingWhatsAppMessage = {
   text?: string;
   mediaId?: string;
   mimeType?: string;
+  caption?: string;
 };
 
 export function parseIncomingWebhook(body: unknown): IncomingWhatsAppMessage | null {
@@ -76,12 +82,14 @@ export function parseIncomingWebhook(body: unknown): IncomingWhatsAppMessage | n
       return {
         phoneNumberId, from, type: "image",
         mediaId: message.image?.id, mimeType: message.image?.mime_type,
+        caption: message.image?.caption,
       };
     }
     if (message.type === "document") {
       return {
         phoneNumberId, from, type: "document",
         mediaId: message.document?.id, mimeType: message.document?.mime_type,
+        caption: message.document?.caption,
       };
     }
     return null;

@@ -1,0 +1,1 @@
+ALTER TABLE `units` ADD `business_name` text;

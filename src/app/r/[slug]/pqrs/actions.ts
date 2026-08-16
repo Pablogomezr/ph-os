@@ -15,6 +15,12 @@ export async function createResidentPqrs(
 ): Promise<PqrsResidentState> {
   const ctx = await getResidentContext(slug);
   if (!ctx) return { error: "No autorizado. Tu sesión puede haber expirado." };
+  if (ctx.readOnly) {
+    return {
+      error:
+        "Tu cuenta es de solo consulta. Para radicar una solicitud, contacta a quien gestiona la unidad o a la administración.",
+    };
+  }
 
   const type        = (formData.get("type") as string)?.trim();
   const subject     = (formData.get("subject") as string)?.trim();

@@ -1,7 +1,15 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 
-const _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Algunas herramientas (ej. pegar vía pipe en PowerShell) prependen un BOM
+// (U+FEFF) invisible al valor de la env var, lo que rompe el header
+// "x-api-key" con "Cannot convert argument to a ByteString...". Se limpia
+// por seguridad antes de usarlo.
+const BOM = String.fromCharCode(0xfeff);
+const _apiKey = (process.env.ANTHROPIC_API_KEY ?? "")
+  .split(BOM).join("")
+  .trim();
+const _client = new Anthropic({ apiKey: _apiKey });
 
 const MIME_MAP: Record<string, "image/jpeg" | "image/png" | "image/webp" | "image/gif" | "application/pdf"> = {
   "image/jpeg": "image/jpeg",
@@ -21,6 +29,10 @@ Campos requeridos:
 - referencia: número de referencia/operación/transacción (string o null)
 - banco_emisor: nombre del banco desde donde se realizó el pago (string o null)
 - concepto: motivo — Administración, Parqueadero, Cuota Extraordinaria u otro (string o null)
+- unidad_mencionada: si el comprobante incluye una nota/descripción/memo de la transferencia
+  que mencione un apartamento, oficina, torre, local o unidad (ej. "Apto 501", "Torre B 9C",
+  "Oficina 302"), extrae ese identificador tal cual aparece (string o null). Si no hay ninguna
+  mención de unidad en el comprobante, usa null — no inventes ni infieras.
 
 Reglas:
 1. monto debe ser número puro: 350000, no "$350.000"
@@ -30,7 +42,7 @@ Reglas:
 5. Responde ÚNICAMENTE con el JSON. Sin markdown, sin texto extra.
 
 Ejemplo de salida válida:
-{"valid":true,"nombre":"Carlos García","fecha":"2024-01-15","monto":350000,"referencia":"20240115001","banco_emisor":"Bancolombia","concepto":"Administración"}`;
+{"valid":true,"nombre":"Carlos García","fecha":"2024-01-15","monto":350000,"referencia":"20240115001","banco_emisor":"Bancolombia","concepto":"Administración","unidad_mencionada":"Apto 501"}`;
 
 export type ExtractedPayment = {
   valid: boolean;
@@ -40,6 +52,7 @@ export type ExtractedPayment = {
   referencia?: string | null;
   banco_emisor?: string | null;
   concepto?: string | null;
+  unidad_mencionada?: string | null;
   error?: string;
 };
 
