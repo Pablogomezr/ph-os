@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { text, integer, real, sqliteTable } from "drizzle-orm/sqlite-core";
+import { text, integer, real, sqliteTable, uniqueIndex, index } from "drizzle-orm/sqlite-core";
 
 /**
  * SCHEMA POR EDIFICIO (Tenant)
@@ -245,6 +245,76 @@ export const buildingConfig = sqliteTable("building_config", {
   updatedAt: integer("updated_at").notNull().default(sql`(unixepoch())`),
 });
 
+
+// ─── COLA DE TRABAJOS DE AGENTES ─────────────────────────────────────────────
+// Genérica: la reutilizan A1..A7. Vercel no reintenta un cron que falla, y su
+// propia documentación advierte que puede invocar el mismo cron más de una vez.
+// Esta tabla suple lo primero (reintentos con backoff) y la clave de
+// idempotencia protege de lo segundo.
+export const jobs = sqliteTable("jobs", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),                          // "aviso_cartera", y los que vengan
+  payload: text("payload").notNull().default("{}"),      // SOLO ids. Nunca montos: se releen al ejecutar
+  status: text("status").notNull().default("pendiente"), // pendiente | ejecutando | hecho | fallido | cancelado
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(3),
+  // Epoch en SEGUNDOS, como todo el esquema. La especificación decía
+  // milisegundos; mezclar unidades de tiempo en la misma base es un bug
+  // esperando ocurrir, así que se unificó a segundos.
+  runAfter: integer("run_after").notNull(),
+  idempotencyKey: text("idempotency_key").notNull().unique(),
+  error: text("error"),
+  createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at").notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  index("jobs_status_run_after").on(t.status, t.runAfter),
+]);
+
+// ─── BITÁCORA DE AGENTES ─────────────────────────────────────────────────────
+// La evidencia ante el consejo de administración. TODA ejecución deja fila,
+// incluidas las omitidas: el silencio no es aceptable.
+export const agentLog = sqliteTable("agent_log", {
+  id: text("id").primaryKey(),
+  agent: text("agent").notNull(),                        // "A1", "A0"…
+  action: text("action").notNull(),                      // "encolar" | "aviso_1" | "aviso_2" | "aviso_3"
+  level: text("level").notNull(),                        // verde | amarillo | rojo
+  unitId: text("unit_id"),                               // null en corridas globales
+  input: text("input").notNull().default("{}"),          // qué vio el agente
+  output: text("output").notNull().default("{}"),        // qué hizo
+  result: text("result").notNull(),                      // ok | omitido | error
+  // Motivo separado del resultado, para poder agrupar: al mes sabes cuántos
+  // avisos se omitieron por "saldo_cero" contra "sin_telefono".
+  reason: text("reason"),
+  approvedBy: text("approved_by"),                       // solo Amarillos
+  createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  index("agent_log_agent_created").on(t.agent, t.createdAt),
+]);
+
+// ─── CONTROL DE AVISOS DE MORA ───────────────────────────────────────────────
+export const carteraNotices = sqliteTable("cartera_notices", {
+  id: text("id").primaryKey(),
+  unitId: text("unit_id").notNull().references(() => units.id),
+  period: text("period").notNull(),                      // "YYYY-MM"
+  noticeType: integer("notice_type").notNull(),          // 1 | 2 | 3
+  // Pesos COP ENTEROS. El resto del esquema usa real por razones históricas;
+  // el redondeo se hace una sola vez, en lib/cartera/saldo.ts.
+  balanceAtSend: integer("balance_at_send").notNull(),
+  recipientUserId: text("recipient_user_id"),
+  recipientPhone: text("recipient_phone"),
+  waMessageId: text("wa_message_id"),                    // null hasta que Meta responde
+  // La fila se RESERVA antes de enviar y se completa después. Así, una caída
+  // entre el envío y el registro no produce un segundo aviso en el reintento.
+  status: text("status").notNull().default("reservado"), // reservado | enviado | entregado | leido | fallido
+  error: text("error"),
+  sentAt: integer("sent_at"),
+  createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  // La pieza que garantiza que jamás salgan dos avisos del mismo tipo a la
+  // misma unidad en el mismo período, pase lo que pase con crons y despliegues.
+  uniqueIndex("cartera_notices_unit_period_type").on(t.unitId, t.period, t.noticeType),
+]);
+
 // ─── TIPOS INFERIDOS ──────────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
 export type Unit = typeof units.$inferSelect;
@@ -260,3 +330,7 @@ export type Communication = typeof communications.$inferSelect;
 export type MessageThread = typeof messageThreads.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
+export type Job = typeof jobs.$inferSelect;
+export type NewJob = typeof jobs.$inferInsert;
+export type AgentLogEntry = typeof agentLog.$inferSelect;
+export type CarteraNotice = typeof carteraNotices.$inferSelect;

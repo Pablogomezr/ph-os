@@ -2,12 +2,11 @@ import { requireResidentContext } from "@/lib/resident-auth";
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import { inArray, desc } from "drizzle-orm";
 import { Receipt, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
+import {
+  estadoEfectivo, saldoDeCargo, pagosPorCargo, formatearCOP,
+  type CargoParaSaldo,
+} from "@/lib/cartera/saldo";
 
-function formatCOP(n: number) {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency", currency: "COP", maximumFractionDigits: 0,
-  }).format(n);
-}
 function formatDate(ts: number) {
   return new Date(ts * 1000).toLocaleDateString("es-CO", {
     day: "2-digit", month: "short", year: "numeric",
@@ -28,35 +27,57 @@ const STATUS_CONFIG = {
   overdue: { label: "Vencido",   color: "bg-[#EF4444]/10 text-[#EF4444]", icon: AlertTriangle },
 } as const;
 
+/** Un cargo ya resuelto contra sus pagos, listo para pintar. */
+type CargoVista = CargoParaSaldo & {
+  concept: string;
+  description: string | null;
+  /** Estado derivado — "overdue" nunca viene de la base. */
+  estado: string;
+  /** Lo que falta por pagar, en pesos enteros. */
+  saldo: number;
+};
+
 export default async function MisCargosPage({
   params,
 }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const ctx = await requireResidentContext(slug);
   const db  = await getTenantDb(slug);
+  const now = Math.floor(Date.now() / 1000);
 
-  const charges = ctx.unitIds.length
-    ? await db.select().from(tenantSchema.charges)
-        .where(inArray(tenantSchema.charges.unitId, ctx.unitIds))
-        .orderBy(desc(tenantSchema.charges.dueDate))
-    : [];
+  const [charges, pagos] = ctx.unitIds.length
+    ? await Promise.all([
+        db.select().from(tenantSchema.charges)
+          .where(inArray(tenantSchema.charges.unitId, ctx.unitIds))
+          .orderBy(desc(tenantSchema.charges.dueDate)),
+        db.select({
+            chargeId: tenantSchema.payments.chargeId,
+            amount:   tenantSchema.payments.amount,
+          })
+          .from(tenantSchema.payments)
+          .where(inArray(tenantSchema.payments.unitId, ctx.unitIds)),
+      ])
+    : [[], []];
 
-  // KPIs
-  const totalPending = charges
-    .filter((c) => c.status !== "paid")
-    .reduce((s, c) => s + c.amount, 0);
-  const totalPaid = charges
-    .filter((c) => c.status === "paid")
-    .reduce((s, c) => s + c.amount, 0);
-  const overdueCount = charges.filter((c) => c.status === "overdue").length;
+  // Fuente única de verdad — el mismo cálculo que ve la administración y el
+  // que usa el agente de cartera para decidir a quién le escribe.
+  const pagado = pagosPorCargo(pagos);
+  const items: CargoVista[] = charges.map((c) => ({
+    ...c,
+    estado: estadoEfectivo(c, now),
+    saldo:  saldoDeCargo(c, pagado.get(c.id) ?? 0),
+  }));
 
-  // Agrupar
-  const pending = charges.filter((c) => c.status === "pending" || c.status === "partial");
-  const overdue = charges.filter((c) => c.status === "overdue");
-  const paid    = charges.filter((c) => c.status === "paid");
+  const totalPending = items.reduce((s, c) => s + c.saldo, 0);
+  const totalPaid    = Math.round(pagos.reduce((s, p) => s + p.amount, 0));
+  const overdueCount = items.filter((c) => c.estado === "overdue").length;
+
+  const overdue = items.filter((c) => c.estado === "overdue");
+  const pending = items.filter((c) => c.estado === "pending" || c.estado === "partial");
+  const paid    = items.filter((c) => c.estado === "paid");
 
   function ChargeTable({ items, title, accentColor }: {
-    items: typeof charges; title: string; accentColor: string
+    items: CargoVista[]; title: string; accentColor: string
   }) {
     if (items.length === 0) return null;
     return (
@@ -68,8 +89,9 @@ export default async function MisCargosPage({
         </div>
         <div className="divide-y divide-border">
           {items.map((c) => {
-            const s = STATUS_CONFIG[c.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending;
+            const s = STATUS_CONFIG[c.estado as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending;
             const SIcon = s.icon;
+            const abonado = c.estado !== "paid" && c.saldo > 0 && c.saldo < Math.round(c.amount);
             return (
               <div key={c.id} className="flex items-center gap-4 px-5 py-3">
                 <div className="flex-1 min-w-0">
@@ -79,10 +101,13 @@ export default async function MisCargosPage({
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Vence: {formatDate(c.dueDate)}
+                    {abonado ? <> · Abonado: {formatearCOP(Math.round(c.amount) - c.saldo)}</> : null}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-semibold tabular-nums text-foreground">{formatCOP(c.amount)}</p>
+                  <p className="text-sm font-semibold tabular-nums text-foreground">
+                    {formatearCOP(c.estado === "paid" ? Math.round(c.amount) : c.saldo)}
+                  </p>
                   <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full mt-0.5 ${s.color}`}>
                     <SIcon className="w-2.5 h-2.5" />{s.label}
                   </span>
@@ -106,11 +131,11 @@ export default async function MisCargosPage({
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-card border border-border rounded-xl p-4 text-center">
           <p className="text-xs text-muted-foreground mb-1">Saldo pendiente</p>
-          <p className="text-lg font-bold text-[#EF4444] tabular-nums">{formatCOP(totalPending)}</p>
+          <p className="text-lg font-bold text-[#EF4444] tabular-nums">{formatearCOP(totalPending)}</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-4 text-center">
           <p className="text-xs text-muted-foreground mb-1">Total pagado</p>
-          <p className="text-lg font-bold text-[#10B981] tabular-nums">{formatCOP(totalPaid)}</p>
+          <p className="text-lg font-bold text-[#10B981] tabular-nums">{formatearCOP(totalPaid)}</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-4 text-center">
           <p className="text-xs text-muted-foreground mb-1">Vencidos</p>

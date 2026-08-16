@@ -12,7 +12,7 @@
     "db:push:tenant": "drizzle-kit push --config drizzle.tenant.config.ts",
     "db:migrate:central": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:migrate:tenant": "tsx scripts/migrate-tenant.ts",
+    "db:migrate:tenant": "node scripts/migrate-tenant.mjs",
     "provision:turso": "node scripts/provision-turso-prod.mjs",
     "test": "node --import tsx --test \"src/**/*.test.ts\""
   },

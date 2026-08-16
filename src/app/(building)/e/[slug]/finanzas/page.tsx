@@ -3,6 +3,7 @@ import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import { getSuperadminDb } from "@/lib/db/superadmin";
 import * as saSchema from "@/lib/db/schema/superadmin";
 import { eq, desc, sql, isNotNull } from "drizzle-orm";
+import { estadoEfectivo } from "@/lib/cartera/saldo";
 import FinanzasClient from "./FinanzasClient";
 import type { ChargeWithUnit, KPIs, PendingReviewPayment, BankMovementRow, ChargeMatchCandidate, PaymentRow } from "./types";
 
@@ -60,9 +61,11 @@ export default async function FinanzasPage({
   const residentNameById = Object.fromEntries(residents.map((r) => [r.id, r.name]));
 
   const chargesWithUnit: ChargeWithUnit[] = charges.map((c) => {
-    const paidAmount      = paymentMap[c.id] ?? 0;
-    const isOverdue       = c.status === "pending" && c.dueDate < now;
-    const effectiveStatus = isOverdue ? "overdue" : c.status;
+    const paidAmount = paymentMap[c.id] ?? 0;
+    // El estado vencido se deriva en lib/cartera/saldo.ts — misma definición que
+    // usan el portal del residente y el agente de cartera. Antes se calculaba
+    // aquí y en el portal por separado, y las dos vistas no coincidían.
+    const effectiveStatus = estadoEfectivo(c, now);
     return {
       id:              c.id,
       unitId:          c.unitId,
