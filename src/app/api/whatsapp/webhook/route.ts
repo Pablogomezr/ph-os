@@ -8,12 +8,17 @@ import { extractPaymentData } from "@/lib/whatsapp/ocr";
 import { reconcilePayment } from "@/lib/reconciliation";
 import { generateUnregisteredReply, classifyResidentMessage, type ChatTurn } from "@/lib/whatsapp/chat";
 import { isReadOnlyRole } from "@/lib/roles";
+import { verifyMetaSignature } from "@/lib/whatsapp/signature";
 
 const REGISTRATION_MESSAGE =
   "No encontramos tu número registrado. Si vas a reportar un pago, envía la foto o PDF del comprobante indicando " +
   "claramente a qué unidad corresponde (ej. \"Apto 501\", como texto junto con la foto).\n\n" +
   "Si necesitas registrarte, contáme lo siguiente y un administrador te registrará en el sistema:\n" +
   "• Celular\n• Correo electrónico\n• Unidad a la que perteneces (ej. Apto 501, Local 3, Oficina 205)";
+
+// La verificación de firma usa node:crypto, y el handler descarga multimedia de
+// Meta y llama a la API de Claude — runtime Node, nunca Edge.
+export const runtime = "nodejs";
 
 type TenantDb = Awaited<ReturnType<typeof getTenantDb>>;
 
@@ -32,7 +37,27 @@ export async function GET(req: NextRequest) {
 
 // ─── Mensajes entrantes ────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  // El WHATSAPP_VERIFY_TOKEN solo protege el handshake GET. Cada POST se
+  // autentica con la firma HMAC-SHA256 que Meta envía en X-Hub-Signature-256.
+  // Se calcula sobre los BYTES EXACTOS del cuerpo, así que hay que leerlo crudo
+  // ANTES de parsear el JSON — si se parsea y se re-serializa, no coincide nunca.
+  const rawBody = Buffer.from(await req.arrayBuffer());
+
+  if (!verifyMetaSignature(rawBody, req.headers.get("x-hub-signature-256"), process.env.WHATSAPP_APP_SECRET)) {
+    console.error(
+      "Webhook de WhatsApp: firma X-Hub-Signature-256 inválida o ausente — petición descartada. " +
+      "Si esto aparece con tráfico legítimo, verifica que WHATSAPP_APP_SECRET coincida con el App Secret de Meta."
+    );
+    return new NextResponse("Firma inválida", { status: 401 });
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody.toString("utf8"));
+  } catch {
+    return new NextResponse("Cuerpo JSON inválido", { status: 400 });
+  }
+
   const parsed = parseIncomingWebhook(body);
 
   // Status updates (delivered/read) u otros eventos sin mensaje — ignorar

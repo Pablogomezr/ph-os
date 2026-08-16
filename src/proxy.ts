@@ -11,7 +11,10 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/api/webhooks(.*)",
   "/api/export/(.*)",   // Export route handlers (auth checked inside)
-  "/api/whatsapp/webhook", // Meta llama esta ruta sin sesión de Clerk — verificación propia (VERIFY_TOKEN)
+  // Meta llama esta ruta sin sesión de Clerk. La autenticación real la hace el
+  // propio handler: firma HMAC-SHA256 X-Hub-Signature-256 sobre el cuerpo crudo
+  // (ver lib/whatsapp/signature.ts). El VERIFY_TOKEN solo cubre el handshake GET.
+  "/api/whatsapp/webhook",
   // Portal residentes: auth manejada en layout + lib/resident-auth
   // No se incluye aquí — la protección de Clerk continúa activa
 ]);
