@@ -48,12 +48,38 @@ const BASELINE = args.find((a) => a.startsWith("--baseline="))?.split("=")[1] ??
 try {
   for (const linea of readFileSync(".env.local", "utf8").split("\n")) {
     const m = linea.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    if (!m) continue;
+    const valor = m[2].trim().replace(/^["']|["']$/g, "");
+    // Las variables marcadas Sensitive en Vercel se descargan con el nombre y el
+    // valor VACÍO. Tratarlas como presentes hace que el fallo aparezca después,
+    // como un error de conexión incomprensible.
+    if (valor && !process.env[m[1]]) process.env[m[1]] = valor;
   }
 } catch { /* sin .env.local */ }
 
 if (!process.env.TURSO_CENTRAL_URL || !process.env.TURSO_CENTRAL_AUTH_TOKEN) {
-  console.error("Faltan TURSO_CENTRAL_URL / TURSO_CENTRAL_AUTH_TOKEN. Corre: vercel env pull .env.local");
+  console.error(`
+No hay credenciales de la base central: faltan TURSO_CENTRAL_URL y/o
+TURSO_CENTRAL_AUTH_TOKEN, o llegaron vacías.
+
+Si ya corriste  vercel env pull .env.local --environment=production  y aun así
+faltan, es porque en Vercel están marcadas como Sensitive: el valor no se puede
+volver a leer, ni desde la CLI ni desde el panel. Hay dos caminos:
+
+  a) Desde Turso, que es la fuente de verdad:
+       turso db list
+       turso db show <base-central> --url
+       turso db tokens create <base-central>
+
+  b) Desde un proyecto de Vercel donde NO estén marcadas Sensitive
+     (revisa el ojito en Settings → Environment Variables).
+
+Y las pegas a mano en .env.local:
+  TURSO_CENTRAL_URL=libsql://...
+  TURSO_CENTRAL_AUTH_TOKEN=...
+
+El simulacro te dirá enseguida si acertaste: lista los edificios por nombre.
+`);
   process.exit(1);
 }
 
