@@ -27,7 +27,10 @@
  * Requiere TURSO_CENTRAL_URL y TURSO_CENTRAL_AUTH_TOKEN (vercel env pull).
  */
 
-import { createClient } from "@libsql/client";
+// Cliente web (HTTP/hrana): habla igual con Turso pero SIN el binario nativo,
+// que se compila por plataforma. Este script solo se conecta a bases remotas,
+// asi que no pierde nada y se vuelve portable entre Windows, Linux y CI.
+import { createClient } from "@libsql/client/web";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
