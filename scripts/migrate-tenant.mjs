@@ -17,6 +17,13 @@
  *   node scripts/migrate-tenant.mjs --slug=camacol --apply
  *   node scripts/migrate-tenant.mjs --apply            # todos, de verdad
  *
+ * Primera vez sobre una base que ya existía (marca el historial previo sin
+ * ejecutarlo, y solo entonces aplica lo nuevo):
+ *   node scripts/migrate-tenant.mjs --baseline=0004_whole_freak
+ *   node scripts/migrate-tenant.mjs --baseline=0004_whole_freak --apply
+ *   node scripts/migrate-tenant.mjs
+ *   node scripts/migrate-tenant.mjs --apply
+ *
  * Requiere TURSO_CENTRAL_URL y TURSO_CENTRAL_AUTH_TOKEN (vercel env pull).
  */
 
@@ -28,6 +35,14 @@ const DIR = "drizzle/tenant-migrations";
 const args = process.argv.slice(2);
 const APLICAR = args.includes("--apply");
 const SLUG = args.find((a) => a.startsWith("--slug="))?.split("=")[1] ?? null;
+/**
+ * --baseline=<tag>  Marca como aplicadas todas las migraciones hasta ese tag,
+ * SIN ejecutarlas. Es para bases que ya existían antes de que hubiera registro
+ * de migraciones: su esquema ya está al día, pero __migraciones está vacía y
+ * sin esto el script intentaría reaplicar todo desde cero y fallaría en la
+ * primera sentencia.
+ */
+const BASELINE = args.find((a) => a.startsWith("--baseline="))?.split("=")[1] ?? null;
 
 // ─── .env.local ──────────────────────────────────────────────────────────────
 try {
@@ -89,6 +104,49 @@ for (const e of edificios) {
   );
   const { rows: yaAplicadas } = await db.execute("SELECT nombre FROM __migraciones");
   const aplicadas = new Set(yaAplicadas.map((r) => r.nombre));
+
+  // ── Baseline ────────────────────────────────────────────────────────────
+  if (BASELINE) {
+    // Guarda: no marcar como aplicada la historia de una base vacía.
+    const { rows: tablas } = await db.execute(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('units','charges')"
+    );
+    if (tablas.length < 2) {
+      console.error(`  ✗ ${e.slug} — la base no tiene units/charges: NO parece una base ya migrada. Se omite el baseline.`);
+      errores++;
+      db.close();
+      continue;
+    }
+
+    const corte = migraciones.findIndex((m) => m.nombre.startsWith(BASELINE));
+    if (corte === -1) {
+      console.error(`  ✗ ${e.slug} — no existe una migración que empiece por "${BASELINE}"`);
+      errores++;
+      db.close();
+      continue;
+    }
+
+    const aMarcar = migraciones.slice(0, corte + 1).filter((m) => !aplicadas.has(m.nombre));
+    if (aMarcar.length === 0) {
+      console.log(`  ✓ ${e.slug} — el baseline ya estaba puesto`);
+      db.close();
+      continue;
+    }
+
+    console.log(`  ${e.slug} (${e.name}) — marcaría ${aMarcar.length} migración(es) como aplicadas SIN ejecutarlas:`);
+    for (const m of aMarcar) {
+      console.log(`      · ${m.nombre}`);
+      if (APLICAR) {
+        await db.execute({
+          sql: "INSERT INTO __migraciones (nombre, aplicada_en) VALUES (?, ?)",
+          args: [m.nombre, Math.floor(Date.now() / 1000)],
+        });
+      }
+    }
+    if (APLICAR) console.log(`      ✓ baseline registrado`);
+    db.close();
+    continue;
+  }
 
   const pendientes = migraciones.filter((m) => !aplicadas.has(m.nombre));
 
