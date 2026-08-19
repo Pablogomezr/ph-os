@@ -2,13 +2,20 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
   variablesDeAviso, NOMBRE_PLANTILLA, primerNombre, formatearFecha,
-  periodoDe, esTipoAviso, DIAS_PLAZO_PREJURIDICO,
+  periodoDe, esTipoAviso, DIAS_PLAZO_PREJURIDICO, IDIOMA_PLANTILLA,
 } from "./plantillas";
 
 // 15 de agosto de 2026, 13:00 UTC = 8:00 a.m. en Colombia
 const AHORA = Math.floor(Date.UTC(2026, 7, 15, 13, 0, 0) / 1000);
 
 describe("plantillas de aviso", () => {
+  test("el idioma coincide EXACTAMENTE con lo aprobado en Meta", () => {
+    // Las plantillas quedaron aprobadas como Espanol (COL). Si esto no coincide
+    // con el codigo de Meta, cada envio se rechaza — y el fallo aparece recien
+    // el dia 6, cuando corre el cron.
+    assert.equal(IDIOMA_PLANTILLA, "es_CO");
+  });
+
   test("cada tipo apunta a la plantilla aprobada por Meta", () => {
     assert.equal(NOMBRE_PLANTILLA[1], "recordatorio_cuota_pendiente");
     assert.equal(NOMBRE_PLANTILLA[2], "aviso_saldo_vencido");

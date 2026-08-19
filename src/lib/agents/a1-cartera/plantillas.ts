@@ -15,10 +15,10 @@ import { formatearCOP } from "@/lib/cartera/saldo";
 
 /**
  * Código de idioma con el que quedaron aprobadas las plantillas en Meta.
- * Si Meta las aprobó como "Español (COL)", cambiar a "es_CO" — si no coincide
- * exactamente, Meta rechaza cada envío.
+ * Confirmado: quedaron como "Español (COL)" → es_CO. Tiene que coincidir
+ * EXACTAMENTE con lo aprobado; si no, Meta rechaza cada envío.
  */
-export const IDIOMA_PLANTILLA = "es";
+export const IDIOMA_PLANTILLA = "es_CO";
 
 /** Zona horaria del edificio. El servidor corre en UTC; sin esto, una fecha
  *  cerca de medianoche se corre un día en el texto del aviso. */
