@@ -1,125 +1,218 @@
 # Propiedad Horizontal OS
 
-SaaS multi-tenant para gestión administrativa de copropiedades en Colombia.
-Cada edificio tiene su propia base de datos Turso completamente aislada.
+SaaS multi-inquilino para administración de copropiedades en Colombia. Cada
+edificio tiene su propia base de datos Turso, completamente aislada.
+
+**En producción:** Edificio Camacol, en el proyecto de Vercel `ph-os-build`.
+
+> Este archivo describe el código **como está hoy**, no como se planeó. Si
+> encuentras algo que no coincide con la realidad, corrígelo aquí antes de
+> escribir código basado en ello.
 
 ## Comandos
 
-- `pnpm dev` — Servidor de desarrollo (localhost:3000)
-- `pnpm build` — Build de producción
-- `pnpm lint` — ESLint
-- `pnpm test` — Vitest unit tests
-- `pnpm db:migrate:central` — Migrar DB central (superadmin)
-- `pnpm db:migrate:tenant <slug>` — Migrar DB de un edificio específico
-- `pnpm db:studio` — Drizzle Studio (explorador de DB)
+El repo usa **npm** (hay `package-lock.json`). No pnpm.
 
-## Tech Stack
+- `npm run dev` — servidor de desarrollo en localhost:3000
+- `npm run build` — build de producción; corre también el typecheck
+- `npm run lint` — ESLint
+- `npm test` — tests con el runner nativo de Node (`node:test` + `tsx`). No hay Vitest ni Jest.
+- `npm run db:generate` — genera migración del esquema **central** → `drizzle/migrations/`
+- `npm run db:generate:tenant` — genera migración del esquema de **inquilino** → `drizzle/tenant-migrations/`
+- `npm run db:migrate:tenant` — aplica migraciones de inquilino a la base de cada edificio
+- `npm run db:studio` — Drizzle Studio
 
-Next.js 15 (App Router) + TypeScript + Tailwind v4 + shadcn/ui + Clerk + Turso (Drizzle ORM) + Vercel + Resend + Cloudflare R2 + Stripe
+**Cuidado con `db:generate`.** Sin sufijo apunta al esquema central. Para las
+tablas de edificio —que son casi todas— es `db:generate:tenant`.
+
+### Migrar la base de un edificio
+
+`scripts/migrate-tenant.mjs` lee los edificios de la base central y aplica lo
+pendiente a cada uno. **Por defecto es simulacro y no escribe nada.**
+
+```
+vercel env pull .env.local --environment=production   # trae TURSO_CENTRAL_*
+node scripts/migrate-tenant.mjs                        # simulacro
+node scripts/migrate-tenant.mjs --slug=<edificio>      # simulacro, uno solo
+node scripts/migrate-tenant.mjs --apply                # aplica de verdad
+```
+
+Lleva su propio registro en una tabla `__migraciones` dentro de cada base de
+edificio. Una base que ya existía antes de ese registro se pone al día con
+`--baseline=<tag>`, que marca lo anterior como aplicado sin ejecutarlo.
+
+Al terminar, **devuelve `.env.local` a desarrollo** con `vercel env pull
+.env.local` a secas. Si no, tu servidor local escribe en producción.
+
+## Stack real
+
+Next.js **16.2.7** (App Router, Turbopack) · TypeScript · Tailwind v4 ·
+shadcn/ui · Clerk · Turso + Drizzle ORM · **Vercel Blob** · Stripe ·
+API de Claude (OCR de comprobantes) · WhatsApp Cloud API
+
+Están en `package.json` pero **no se usan en `src/`**: `resend`, `zod`,
+`@aws-sdk/client-s3` (R2), `tesseract.js`, `exceljs` fuera de la ruta de export.
+No asumas que hay validación con Zod ni envío de correo: no la hay todavía.
 
 ## Arquitectura
 
-### Multi-tenancy
-- **DB central** (Turso): tabla `buildings` con `turso_db_url` y `turso_auth_token` por edificio
-- **DB por edificio** (Turso): schema idéntico, datos completamente aislados
-- `getTenantDb(buildingSlug)` en `src/lib/db/tenant.ts` — siempre usar esta función para queries de edificio
-- NUNCA hardcodear conexiones a DB de edificio — siempre resolverla por slug
+### Multi-inquilino
+- **Base central** (`ph-os-central` en Turso): tabla `buildings` con
+  `turso_db_url`, `turso_auth_token` y `whatsapp_phone_id` por edificio.
+- **Base por edificio**: mismo esquema, datos aislados.
+- `getTenantDb(slug)` en `src/lib/db/tenant.ts` — **siempre** por aquí. Nunca
+  hardcodear una conexión de edificio.
+- Nunca exponer `turso_db_url` ni `turso_auth_token` al cliente.
 
-### Auth Flow
-1. Clerk middleware protege todas las rutas excepto `/`, `/precios`, `/sign-in`, `/sign-up`
-2. Clerk Organizations = Edificios — cada edificio es una Org en Clerk
-3. `getUserRole(userId, buildingSlug)` retorna `admin | resident | technician`
-4. Superadmin: verificar `userId === process.env.SUPERADMIN_USER_ID`
+**Consecuencia crítica:** la autorización vive en el **código de aplicación**,
+no en la base. No hay RLS. Cualquier proceso que hable con Turso sin pasar por
+estos helpers no tiene autorización de ningún tipo.
 
-### Directory Structure
-- `src/app/(marketing)/` — Rutas públicas (landing, precios)
-- `src/app/(superadmin)/superadmin/` — Panel del dueño del SaaS
-- `src/app/(app)/[buildingSlug]/` — App por edificio — protegida por Clerk
-- `src/app/api/[buildingSlug]/` — API routes por edificio
-- `src/components/app/` — Componentes de la app (sidebar, forms, widgets)
-- `src/lib/db/` — Conexiones DB (tenant.ts + superadmin.ts + schemas)
-- `src/lib/exports/` — Generadores World Office, Siigo, Excel, CSV
-- `src/lib/messaging/` — Helpers SSE para mensajería en tiempo real
+### Estructura de carpetas
+- `src/app/(marketing)/` — landing, precios, privacidad
+- `src/app/(building)/e/[slug]/` — **panel de administración del edificio**
+- `src/app/r/[slug]/` — portal del residente
+- `src/app/op/[slug]/` — portal del operario (lecturas de energía)
+- `src/app/(superadmin)/superadmin/` — panel del dueño del SaaS
+- `src/app/api/whatsapp/webhook/` — webhook de WhatsApp
+- `src/app/api/cron/` — rutas de Vercel Cron (agentes)
+- `src/lib/agents/` — agentes: cola, bitácora y lógica de A1
+- `src/lib/cartera/saldo.ts` — **fuente única de verdad del saldo**
+- `src/lib/db/` — conexiones y esquemas
 
-### Data Flow
-- Server Components → `getTenantDb(slug)` → query Drizzle → render directo
-- Mutaciones → TanStack Query mutation → `fetch('/api/[slug]/...')` → API Route → Drizzle → audit_log
-- Tiempo real → cliente conecta SSE `/api/[slug]/messages/stream` → `useMessages()` hook
+Estas carpetas existen pero están **vacías**, son restos de un diseño anterior:
+`src/app/(app)/`, `src/lib/exports/`, `src/lib/messaging/`, `src/lib/r2/`,
+`src/lib/stripe/`. No hay rutas `api/[buildingSlug]/`.
+
+### Mutaciones
+Van por **Server Actions** (12 archivos `actions.ts`), no por API routes. Las
+únicas rutas de API son las de webhooks, cron, export y Stripe.
+
+### Los dos sistemas de roles
+Esto confunde. Son dos cosas distintas y no se mezclan:
+
+1. **Rol de organización de Clerk** → `getUserRole(slug)` en
+   `src/lib/auth/helpers.ts`. Devuelve `superadmin | admin | technician |
+   resident`. Controla el acceso al panel de administración.
+2. **Rol del residente en la base del edificio** → columna `users.role`.
+   Valores: `resident` (Propietario), `tenant` (Arrendatario), `observer`
+   (Observador, solo lectura), `admin`, `technician`. Se consulta con
+   `isReadOnlyRole()` de `src/lib/roles.ts`, un módulo sin dependencias
+   pensado para poder importarse desde el webhook, que no debe cargar Clerk.
+
+El **Observador nunca modifica nada** y nunca recibe cobros. Es regla de
+producto, y está cubierta por tests en `src/lib/agents/a1-cartera/`.
 
 ### Módulos
-Los módulos activos se guardan en `buildings.active_modules` (JSON array) en DB central.
-`src/lib/modules/checker.ts` → `isModuleActive(slug, module)` para verificar.
-`src/components/app/layout/module-guard.tsx` → bloquea rutas de módulos inactivos.
-Módulos disponibles: `base`, `finanzas`, `energia`, `mantenimiento`, `pqrs`, `contabilidad`, `mensajeria`
+`buildings.active_modules` (JSON) en la base central, verificado con
+`isModuleActive()` de `src/lib/modules/checker.ts`. Disponibles: `base`,
+`finanzas`, `energia`, `mantenimiento`, `pqrs`, `contabilidad`, `mensajeria`.
 
-## Code Organization Rules
+## Dinero
 
-1. **Un componente por archivo.** Máximo 300 líneas. Si es más largo, extraer sub-componentes.
-2. **Alias `@/` para imports.** Nunca rutas relativas con `../../..`
-3. **Server Components por defecto.** Solo `"use client"` cuando hay interactividad (forms, charts, SSE).
-4. **Todos los queries de DB van por `getTenantDb(slug)`.** Nunca conexión directa hardcodeada.
-5. **Toda mutación escribe en `audit_logs`.** Usar helper `logAction(db, userId, action, entityType, entityId)`.
-6. **Formatear COP siempre así:** `new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(amount)`
-7. **Validar inputs con Zod** en todas las API routes antes de tocar la DB.
-8. **No exponer `turso_db_url` ni `turso_auth_token` al cliente nunca.** Solo server-side.
+**El esquema guarda el dinero en `real` (punto flotante)**, no en centavos:
+`charges.amount`, `payments.amount`, `bank_movements.amount`. Es una decisión
+heredada, no una recomendación. Las tablas nuevas usan **pesos enteros**.
 
-## Design System
+`src/lib/cartera/saldo.ts` es la **única** definición válida de saldo y de
+estado vencido. La consumen el panel de administración, el portal del residente
+y el agente de cartera. Antes cada uno calculaba lo suyo y mostraban cifras
+distintas para la misma unidad.
 
-### Colores (Dark Fintech)
-- Background: `#09090B` (--background)
-- Surface/Cards: `#18181B` (--card)
-- Surface Elevated: `#27272A`
-- Border: `#3F3F46`
-- Primary (Indigo): `#6366F1`
-- Accent (Cyan): `#22D3EE`
-- Success: `#10B981`
-- Warning: `#F59E0B`
-- Destructive: `#EF4444`
-- Text Primary: `#FAFAFA`
-- Text Secondary: `#A1A1AA`
+- El estado `overdue` **se deriva** de `dueDate`; nunca se escribe en la base.
+- Se restan **todos** los pagos registrados, verificados contra el banco o no:
+  a quien ya reportó su pago no se le cobra.
+- Formato de moneda: `formatearCOP()` del mismo módulo.
 
-### Typography
-- Fuente UI: Inter (headings bold, body regular)
-- Fuente datos financieros: JetBrains Mono (siempre para COP y kWh)
+## Agentes
 
-### Style
-- Border radius: 6px inputs, 8px botones, 12px cards, 16px modales
-- Espaciado base: 4px (usar múltiplos de 4)
-- Sidebar: 240px desktop, drawer móvil
-- Badges de estado: `paid=emerald`, `pending=amber`, `overdue=red`, `in_review=cyan`
-- Valores monetarios: siempre alineados derecha, font-mono, formato COP
+`src/lib/agents/`. El primero es **A1 — Cartera** (avisos de mora los días 6,
+16 y 26). Corren dentro de esta app Next.js, invocados por Vercel Cron; no hay
+orquestador externo, precisamente porque la autorización vive en el código.
 
-## Environment Variables
+- `shared/queue.ts` — cola con reintentos y backoff. Vercel **no reintenta** un
+  cron fallido y **puede invocar el mismo más de una vez**: la cola resuelve lo
+  primero y la clave de idempotencia lo segundo.
+- `shared/log.ts` — bitácora. **Toda** ejecución deja fila, incluidas las
+  omitidas, con su motivo. Es la evidencia ante el consejo de administración.
+- `a1-cartera/` — encolado con circuit breaker del 40%, y ejecución con los
+  ocho guardarraíles.
 
-| Variable | Descripción |
-|----------|-------------|
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk public key |
-| `CLERK_SECRET_KEY` | Clerk secret key |
-| `SUPERADMIN_USER_ID` | Tu Clerk userId — acceso superadmin |
-| `TURSO_CENTRAL_URL` | URL DB central Turso |
-| `TURSO_CENTRAL_AUTH_TOKEN` | Token DB central |
-| `TURSO_API_TOKEN` | Token API Turso (crear DBs programáticamente) |
-| `TURSO_ORG_NAME` | Nombre de tu organización en Turso |
-| `STRIPE_SECRET_KEY` | Stripe secret key |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe public key |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook secret |
-| `RESEND_API_KEY` | Resend API key |
-| `RESEND_FROM_EMAIL` | Email remitente (ej: noreply@tudominio.com) |
-| `R2_ACCOUNT_ID` | Cloudflare account ID |
-| `R2_ACCESS_KEY_ID` | R2 access key |
-| `R2_SECRET_ACCESS_KEY` | R2 secret key |
-| `R2_BUCKET_NAME` | Nombre del bucket R2 |
-| `NEXT_PUBLIC_APP_URL` | URL pública (https://tudominio.com) |
+Reglas al tocar un agente:
+1. El saldo **se relee de la base en el momento de enviar**, jamás del payload.
+2. El payload de un job lleva **solo ids**, nunca montos.
+3. Los envíos usan **plantillas aprobadas de Meta**, nunca texto libre.
+4. Si un guardarraíl bloquea algo, **igual se escribe en `agent_log`**.
 
-## Reglas No Negociables
+## Seguridad
 
-1. TypeScript strict mode. Cero `any`. Inferir tipos de Drizzle con `typeof schema.$inferSelect`.
-2. Nunca exponer credenciales de Turso al cliente. Siempre server-side only.
-3. Toda API route valida con Zod antes de procesar. Retornar `{ error: string }` con status 400 si falla.
-4. Todo cambio financiero (cargo, pago) escribe en `audit_logs`. Es obligatorio, no opcional.
-5. Mobile-first: diseñar para 375px primero, luego escalar a desktop.
-6. Verificar `isModuleActive()` antes de servir cualquier ruta de módulo opcional.
-7. Verificar rol del usuario en cada API route. No confiar solo en el middleware de Next.js.
-8. Los `audit_logs` son INMUTABLES. Solo INSERT, nunca UPDATE ni DELETE.
-9. Formatear dinero siempre en COP con `Intl.NumberFormat('es-CO')`. Nunca formatear manualmente.
-10. Al crear edificio nuevo: crear Turso DB + correr migraciones + crear Clerk Org ANTES de guardar en DB central.
+- **Webhook de WhatsApp:** cada POST se autentica con la firma HMAC-SHA256 de
+  Meta (`X-Hub-Signature-256`) sobre el **cuerpo crudo**, comparada de forma
+  timing-safe. Ver `src/lib/whatsapp/signature.ts`. El `WHATSAPP_VERIFY_TOKEN`
+  solo cubre el handshake `GET`; **no autentica ni un solo mensaje**.
+- **Rutas de cron:** validan `CRON_SECRET` con comparación timing-safe
+  (`src/lib/cron-auth.ts`). Están en `isPublicRoute` porque no hay sesión de
+  Clerk detrás de un cron, así que esa función es la única barrera.
+- Ambas **fallan cerrado**: sin el secreto configurado, no pasa nadie.
+
+## Deuda conocida
+
+No la arregles de paso; está anotada para que no te sorprenda.
+
+- **`audit_logs` no se escribe nunca.** La tabla existe, el helper `logAction`
+  que mencionaba la versión anterior de este archivo **no existe**, y ninguna
+  mutación registra nada. Sigue siendo lo correcto por hacer.
+- **`requireRole()` está definido pero no se usa en ninguna parte.** Además su
+  jerarquía no incluye `observer`: un rol fuera de la lista da `indexOf === -1`
+  y **pasa cualquier verificación**. Revisar antes de empezar a usarlo.
+- **Drift de esquema.** Se usó `db:push` en vez de `generate` + `migrate` al
+  menos dos veces: `whatsapp_phone_id` en la central y `payment_references` en
+  el inquilino. Por eso `db:migrate:central` hoy fallaría.
+- **Sin validación de entrada.** Zod está instalado y no se usa.
+- El portal del residente y el panel llevaban meses mostrando saldos distintos.
+  Ya está corregido, pero es el tipo de divergencia que hay que vigilar.
+
+## Reglas al escribir código
+
+1. TypeScript estricto. Cero `any`. Tipos inferidos de Drizzle con
+   `typeof schema.$inferSelect`.
+2. Alias `@/` para imports. Nunca `../../..`.
+3. Server Components por defecto; `"use client"` solo con interactividad real.
+4. Todo query de edificio pasa por `getTenantDb(slug)`.
+5. Todo saldo o estado de cargo sale de `src/lib/cartera/saldo.ts`.
+6. Los `audit_logs` son **inmutables**: solo INSERT, jamás UPDATE ni DELETE.
+7. Móvil primero: 375px y de ahí hacia arriba.
+8. Verificar el rol en cada Server Action. El middleware no basta.
+
+## Diseño
+
+Oscuro, estilo fintech. Fondo `#09090B`, tarjetas `#18181B`, bordes `#3F3F46`,
+primario `#6366F1`, acento `#22D3EE`. Éxito `#10B981`, advertencia `#F59E0B`,
+error `#EF4444`.
+
+Radios: 6px inputs, 8px botones, 12px tarjetas, 16px modales. Espaciado en
+múltiplos de 4. Sidebar 240px en escritorio, drawer en móvil.
+
+Valores monetarios: alineados a la derecha, tabulares, siempre con
+`formatearCOP()`.
+
+## Variables de entorno
+
+Viven en Vercel, proyecto **`ph-os-build`**. Se traen con `vercel env pull`.
+
+| Variable | Para qué |
+|---|---|
+| `TURSO_CENTRAL_URL` / `TURSO_CENTRAL_AUTH_TOKEN` | Base central |
+| `TURSO_API_TOKEN` / `TURSO_ORG` | Crear bases de edificio |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` | Clerk |
+| `SUPERADMIN_USER_ID` | Acceso de superadministrador |
+| `WHATSAPP_TOKEN` | Token del System User de Meta |
+| `WHATSAPP_VERIFY_TOKEN` | Solo el handshake GET del webhook |
+| `WHATSAPP_APP_SECRET` | **Firma de cada POST entrante.** Sin ella el webhook rechaza todo |
+| `CRON_SECRET` | Autentica las rutas de cron. Se crea a mano; Vercel no la inyecta |
+| `ANTHROPIC_API_KEY` | OCR de comprobantes |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob (store `ph-os-documentos`) |
+| `STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET` | Suscripciones |
+
+Varias están marcadas **Sensitive**: su valor no se puede volver a leer, ni por
+la CLI ni por el panel. Si necesitas una, consíguela de su origen, no de Vercel.
