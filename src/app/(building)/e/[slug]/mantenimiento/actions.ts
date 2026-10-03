@@ -15,7 +15,7 @@ export async function createAsset(
   _prev: AssetFormState,
   formData: FormData
 ): Promise<AssetFormState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "mantenimiento");
 
   const name          = (formData.get("name")          as string)?.trim();
   const category      = (formData.get("category")      as string)?.trim();
@@ -61,7 +61,7 @@ export async function updateAssetStatus(
   assetId: string,
   status: string
 ): Promise<void> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "mantenimiento");
 
   const validStatuses = ["operational", "maintenance", "offline"];
   if (!validStatuses.includes(status)) return;
@@ -79,7 +79,7 @@ export async function updateAssetStatus(
 
 // ─── Eliminar activo ──────────────────────────────────────────────────────────
 export async function deleteAsset(slug: string, assetId: string): Promise<void> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "mantenimiento");
 
   const db = await getTenantDb(slug);
 
@@ -102,7 +102,7 @@ export async function createTask(
   _prev: TaskFormState,
   formData: FormData
 ): Promise<TaskFormState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "mantenimiento");
 
   const title           = (formData.get("title")          as string)?.trim();
   const description     = (formData.get("description")    as string)?.trim() || null;
@@ -150,7 +150,7 @@ export async function updateTaskStatus(
   taskId: string,
   status: string
 ): Promise<void> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "mantenimiento");
 
   const validStatuses = ["pending", "in_progress", "completed", "cancelled"];
   if (!validStatuses.includes(status)) return;
@@ -172,7 +172,7 @@ export async function updateTaskStatus(
 
 // ─── Eliminar tarea ───────────────────────────────────────────────────────────
 export async function deleteTask(slug: string, taskId: string): Promise<void> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "mantenimiento");
 
   const db = await getTenantDb(slug);
 

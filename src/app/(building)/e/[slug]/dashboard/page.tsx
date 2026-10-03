@@ -30,7 +30,7 @@ export default async function BuildingDashboard({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await requireAccesoPanelPagina(slug);
+  await requireAccesoPanelPagina(slug, "dashboard");
   const { userId } = await auth();
 
   // Datos del edificio

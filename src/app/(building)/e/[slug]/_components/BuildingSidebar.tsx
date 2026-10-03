@@ -26,10 +26,12 @@ interface BuildingSidebarProps {
   city: string | null;
   activeModules: Module[];
   isSuperadmin: boolean;
+  /** Secciones que este usuario puede usar (ver lib/auth/acceso.ts). */
+  secciones: readonly string[];
   unreadWhatsapp?: number;
 }
 
-function buildNavItems(slug: string, activeModules: Module[]): NavItem[] {
+function buildNavItems(slug: string, activeModules: Module[], secciones: readonly string[]): NavItem[] {
   const base = `/e/${slug}`;
   const all: NavItem[] = [
     { href: `${base}/dashboard`,    label: "Dashboard",    icon: LayoutDashboard },
@@ -47,7 +49,9 @@ function buildNavItems(slug: string, activeModules: Module[]): NavItem[] {
   ];
 
   return all.filter(
-    (item) => !item.module || item.module === "base" || activeModules.includes(item.module)
+    (item) =>
+      (!item.module || item.module === "base" || activeModules.includes(item.module)) &&
+      secciones.includes(item.href.slice(base.length + 1))
   );
 }
 
@@ -57,10 +61,11 @@ export default function BuildingSidebar({
   city,
   activeModules,
   isSuperadmin,
+  secciones,
   unreadWhatsapp = 0,
 }: BuildingSidebarProps) {
   const pathname = usePathname();
-  const navItems = buildNavItems(slug, activeModules);
+  const navItems = buildNavItems(slug, activeModules, secciones);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Cerrar el menú móvil al cambiar de página

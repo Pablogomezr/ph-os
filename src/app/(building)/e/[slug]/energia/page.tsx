@@ -11,7 +11,7 @@ export default async function EnergiaPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await requireAccesoPanelPagina(slug);
+  await requireAccesoPanelPagina(slug, "energia");
   await requireModule(slug, "energia");
 
   const db = await getTenantDb(slug);

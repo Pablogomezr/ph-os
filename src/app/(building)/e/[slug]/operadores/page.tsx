@@ -11,7 +11,7 @@ export default async function OperadoresPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await requireAccesoPanelPagina(slug);
+  await requireAccesoPanelPagina(slug, "operadores");
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 

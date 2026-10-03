@@ -8,7 +8,7 @@ export default async function UnidadesPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await requireAccesoPanelPagina(slug);
+  await requireAccesoPanelPagina(slug, "unidades");
 
   let units: typeof tenantSchema.units.$inferSelect[] = [];
   try {

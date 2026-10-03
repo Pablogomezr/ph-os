@@ -91,12 +91,13 @@ Van por **Server Actions** (12 archivos `actions.ts`), no por API routes. Las
 ### Los dos sistemas de roles
 Esto confunde. Son dos cosas distintas y no se mezclan:
 
-1. **Acceso al panel `/e/[slug]`** → `requireAccesoPanel(slug)` en cada Server
-   Action, `requireAccesoPanelPagina(slug)` en cada page.tsx y
-   `tieneAccesoPanel(slug)` en route handlers (`src/lib/auth/helpers.ts`). Entra
-   el superadmin o un usuario **activo** `admin`/`technician` de la tabla `users`
-   de **ese** edificio, por email primario **verificado** de Clerk. Regla pura y
-   tests en `src/lib/auth/acceso.ts`. Las Organizations de Clerk **no se usan**:
+1. **Acceso al panel `/e/[slug]`** → `requireAccesoPanel(slug, seccion)` en cada
+   Server Action, `requireAccesoPanelPagina(slug, seccion)` en cada page.tsx y
+   `tieneAccesoPanel(slug, seccion)` en route handlers (`src/lib/auth/helpers.ts`).
+   Entra el superadmin o un usuario **activo** `admin`/`technician` de la tabla
+   `users` de **ese** edificio, por email primario **verificado** de Clerk. La
+   sección es la carpeta de `/e/[slug]`: el `technician` solo usa
+   `mantenimiento` y `energia`; el `admin`, todas. Regla pura y tests en `src/lib/auth/acceso.ts`. Las Organizations de Clerk **no se usan**:
    `buildings.clerk_org_id` es un placeholder. El layout no basta: una Server
    Action o un page segment se piden sin pasar por él.
 2. **Rol del residente en la base del edificio** → columna `users.role`.

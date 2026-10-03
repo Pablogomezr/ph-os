@@ -11,7 +11,7 @@ export default async function MensajeriaPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await requireAccesoPanelPagina(slug);
+  await requireAccesoPanelPagina(slug, "mensajeria");
   await requireModule(slug, "mensajeria");
 
   const db = await getTenantDb(slug);

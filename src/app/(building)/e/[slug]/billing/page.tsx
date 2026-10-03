@@ -18,7 +18,7 @@ export default async function BillingPage({
 
   const { slug }          = await params;
 
-  await requireAccesoPanelPagina(slug);
+  await requireAccesoPanelPagina(slug, "billing");
   const { success, cancelled } = await searchParams;
 
   const db = getSuperadminDb();

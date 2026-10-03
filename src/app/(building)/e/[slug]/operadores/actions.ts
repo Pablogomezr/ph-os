@@ -13,7 +13,7 @@ export async function createOperador(
   _prev: OperadorFormState,
   formData: FormData
 ): Promise<OperadorFormState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "operadores");
 
   const name  = (formData.get("name")  as string)?.trim();
   const email = (formData.get("email") as string)?.trim().toLowerCase();
@@ -53,7 +53,7 @@ export async function createOperador(
 }
 
 export async function deleteOperador(slug: string, operadorId: string) {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "operadores");
 
   const db = await getTenantDb(slug);
   await db.delete(tenantSchema.users).where(eq(tenantSchema.users.id, operadorId));
@@ -61,7 +61,7 @@ export async function deleteOperador(slug: string, operadorId: string) {
 }
 
 export async function toggleOperadorActive(slug: string, id: string, active: boolean) {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "operadores");
 
   const db = await getTenantDb(slug);
   await db

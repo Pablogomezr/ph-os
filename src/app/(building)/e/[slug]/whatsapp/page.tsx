@@ -10,7 +10,7 @@ export default async function WhatsappPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await requireAccesoPanelPagina(slug);
+  await requireAccesoPanelPagina(slug, "whatsapp");
   const db = await getTenantDb(slug);
 
   const [messages, units, users] = await Promise.all([

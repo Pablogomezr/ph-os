@@ -11,7 +11,7 @@ export default async function MantenimientoPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await requireAccesoPanelPagina(slug);
+  await requireAccesoPanelPagina(slug, "mantenimiento");
   await requireModule(slug, "mantenimiento");
 
   const db  = await getTenantDb(slug);
