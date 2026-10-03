@@ -65,7 +65,9 @@ export async function generateChargeFromReading(
   slug: string,
   readingId: string
 ): Promise<{ error?: string }> {
-  const { userId } = await requireAccesoPanel(slug, "energia");
+  // Crea un cargo: es una operación de finanzas. El técnico registra lecturas
+  // pero no cobra; solo quien tiene acceso a finanzas (admin, superadmin).
+  const { userId } = await requireAccesoPanel(slug, "finanzas");
 
   const db = await getTenantDb(slug);
 
