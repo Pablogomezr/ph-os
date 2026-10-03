@@ -357,13 +357,15 @@ function NuevaLecturaSheet({ open, onClose, slug, units, lastReadings, formActio
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function EnergiaClient({
-  slug, readings, units, lastReadings, kpis,
+  slug, readings, units, lastReadings, kpis, puedeCobrar,
 }: {
   slug: string;
   readings: ReadingWithUnit[];
   units: Unit[];
   lastReadings: LastReadingMap;
   kpis: EnergyKPIs;
+  /** Generar el cargo es de finanzas: el técnico no lo ve. */
+  puedeCobrar: boolean;
 }) {
   const [openNuevaLectura, setOpenNuevaLectura] = useState(false);
   const [filterBilled,     setFilterBilled]     = useState<"all" | "billed" | "unbilled">("all");
@@ -567,7 +569,7 @@ export default function EnergiaClient({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {!r.isBilled && r.consumption > 0 && (
+                      {puedeCobrar && !r.isBilled && r.consumption > 0 && (
                         <button
                           onClick={() => handleBill(r.id)}
                           disabled={isPendingBill && billingId === r.id}
