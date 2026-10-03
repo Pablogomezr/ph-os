@@ -3,6 +3,8 @@ import { getSuperadminDb } from "@/lib/db/superadmin";
 import * as saSchema from "@/lib/db/schema/superadmin";
 import { eq, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { tieneAccesoPanel } from "@/lib/auth/helpers";
+import { getResidentContext } from "@/lib/resident-auth";
 import PazYSalvoClient from "./PazYSalvoClient";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +15,14 @@ export default async function PazYSalvoPage({
   params: Promise<{ slug: string; unitId: string }>;
 }) {
   const { slug, unitId } = await params;
+
+  // ── Acceso ───────────────────────────────────────────────────────────────────
+  // Muestra el propietario y el estado de cuenta de la unidad: solo el personal
+  // de finanzas de ESTE edificio, o un residente activo de esa misma unidad.
+  if (!(await tieneAccesoPanel(slug, "finanzas"))) {
+    const residente = await getResidentContext(slug).catch(() => null);
+    if (!residente || !residente.unitIds.includes(unitId)) notFound();
+  }
 
   // ── Datos del edificio (DB central) ──────────────────────────────────────────
   const saDb = getSuperadminDb();
