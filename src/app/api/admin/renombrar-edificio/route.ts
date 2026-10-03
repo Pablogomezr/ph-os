@@ -17,9 +17,10 @@ const SLUG_NUEVO  = "edificio-camacol";
 const NOMBRE      = "Edificio Camacol";
 
 function secretoValido(recibido: string | null): boolean {
-  const esperado = process.env.MIGRATION_SECRET_RENOMBRAR;
+  // trim: `vercel env add` por stdin guarda el salto de línea final
+  const esperado = process.env.MIGRATION_SECRET_RENOMBRAR?.trim();
   if (!esperado || !recibido) return false; // falla cerrado
-  const a = Buffer.from(recibido);
+  const a = Buffer.from(recibido.trim());
   const b = Buffer.from(esperado);
   return a.length === b.length && timingSafeEqual(a, b);
 }
