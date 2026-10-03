@@ -89,7 +89,8 @@ describe("resolverDestinatario", () => {
       u({ id: "b", createdAt: 2000 }),
       u({ id: "a", createdAt: 1000 }),
     ];
-    assert.equal(resolverDestinatario("u1", usuarios).ok && resolverDestinatario("u1", usuarios).destinatario.userId, "a");
+    const r = resolverDestinatario("u1", usuarios);
+    assert.equal(r.ok && r.destinatario.userId, "a");
     // Mismo resultado con el orden de entrada invertido.
     const invertido = resolverDestinatario("u1", [...usuarios].reverse());
     assert.equal(invertido.ok && invertido.destinatario.userId, "a");

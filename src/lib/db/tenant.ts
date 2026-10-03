@@ -15,8 +15,14 @@ import * as tenantSchema from "./schema/tenant";
  * NUNCA exponer turso_db_url ni turso_auth_token al cliente.
  */
 
-// Cache de conexiones por slug para evitar crear una nueva conexión en cada request
-const tenantConnections = new Map<string, ReturnType<typeof drizzle>>();
+function conectar(url: string, authToken: string) {
+  return drizzle(createClient({ url, authToken }), { schema: tenantSchema });
+}
+
+// Cache de conexiones por slug para evitar crear una nueva conexión en cada request.
+// Tipado con el esquema: con ReturnType<typeof drizzle> a secas, getTenantDb
+// devolvía una unión con un Drizzle sin esquema.
+const tenantConnections = new Map<string, ReturnType<typeof conectar>>();
 
 export async function getTenantDb(buildingSlug: string) {
   // Retornar conexión cacheada si existe
@@ -45,12 +51,7 @@ export async function getTenantDb(buildingSlug: string) {
   }
 
   // Crear conexión a la DB del edificio
-  const client = createClient({
-    url: building.tursoDbUrl,
-    authToken: building.tursoAuthToken,
-  });
-
-  const db = drizzle(client, { schema: tenantSchema });
+  const db = conectar(building.tursoDbUrl, building.tursoAuthToken);
 
   // Cachear para reuso
   tenantConnections.set(buildingSlug, db);

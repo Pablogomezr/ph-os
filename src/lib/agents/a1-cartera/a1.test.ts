@@ -403,14 +403,16 @@ describe("Criterio 7 — el monto del aviso es el mismo que ve el propietario", 
     await encolarAvisos(b.db, { tipo: 3, ahora: AHORA });
     const [job] = await tomarPendientes(b.db, TIPO_JOB, AHORA);
 
-    let recibido: Parameters<EnvioPlantilla>[0] | null = null;
-    const enviar: EnvioPlantilla = async (p) => { recibido = p; return { waMessageId: "wamid.x" }; };
+    // Arreglo y no `let`: TS no ve la asignación dentro del callback y estrecha a `never`.
+    const recibidos: Parameters<EnvioPlantilla>[0][] = [];
+    const enviar: EnvioPlantilla = async (p) => { recibidos.push(p); return { waMessageId: "wamid.x" }; };
     await procesarJobAviso(b.db, { ...job, attempts: 1 }, { enviar, ahora: AHORA });
 
-    assert.ok(recibido);
-    assert.equal(recibido!.plantilla, "preaviso_cobro_prejuridico");
-    assert.equal(recibido!.variables.length, 4);
-    assert.equal(recibido!.variables[1], "Apto 501");
+    assert.equal(recibidos.length, 1);
+    const [recibido] = recibidos;
+    assert.equal(recibido.plantilla, "preaviso_cobro_prejuridico");
+    assert.equal(recibido.variables.length, 4);
+    assert.equal(recibido.variables[1], "Apto 501");
   });
 });
 
