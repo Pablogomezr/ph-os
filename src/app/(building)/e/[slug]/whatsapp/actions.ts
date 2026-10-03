@@ -1,10 +1,10 @@
 "use server";
 
+import { requireAccesoPanel } from "@/lib/auth/helpers";
+
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import { getSuperadminDb, superadminSchema } from "@/lib/db/superadmin";
-import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
 import { markWhatsappSeen } from "@/lib/whatsapp/unread";
@@ -15,8 +15,7 @@ export type SendReplyState = { error?: string; success?: boolean } | null;
 // Se llama desde el cliente al abrir el módulo (no desde el render de la página,
 // para no marcarlos como vistos solo por un prefetch al pasar el mouse sobre el link).
 export async function markSeen(slug: string): Promise<void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   await markWhatsappSeen(slug);
   revalidatePath(`/e/${slug}`, "layout");
@@ -29,8 +28,7 @@ export async function sendReply(
   _prev: SendReplyState,
   formData: FormData
 ): Promise<SendReplyState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const text = (formData.get("text") as string)?.trim();
   if (!text) return { error: "Escribe un mensaje." };

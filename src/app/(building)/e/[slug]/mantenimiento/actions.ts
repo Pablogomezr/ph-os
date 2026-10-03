@@ -1,9 +1,9 @@
 "use server";
 
+import { requireAccesoPanel } from "@/lib/auth/helpers";
+
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
-import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 export type AssetFormState  = { error?: string; success?: boolean } | null;
@@ -15,8 +15,7 @@ export async function createAsset(
   _prev: AssetFormState,
   formData: FormData
 ): Promise<AssetFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const name          = (formData.get("name")          as string)?.trim();
   const category      = (formData.get("category")      as string)?.trim();
@@ -62,8 +61,7 @@ export async function updateAssetStatus(
   assetId: string,
   status: string
 ): Promise<void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const validStatuses = ["operational", "maintenance", "offline"];
   if (!validStatuses.includes(status)) return;
@@ -81,8 +79,7 @@ export async function updateAssetStatus(
 
 // ─── Eliminar activo ──────────────────────────────────────────────────────────
 export async function deleteAsset(slug: string, assetId: string): Promise<void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
 
@@ -105,8 +102,7 @@ export async function createTask(
   _prev: TaskFormState,
   formData: FormData
 ): Promise<TaskFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const title           = (formData.get("title")          as string)?.trim();
   const description     = (formData.get("description")    as string)?.trim() || null;
@@ -154,8 +150,7 @@ export async function updateTaskStatus(
   taskId: string,
   status: string
 ): Promise<void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const validStatuses = ["pending", "in_progress", "completed", "cancelled"];
   if (!validStatuses.includes(status)) return;
@@ -177,8 +172,7 @@ export async function updateTaskStatus(
 
 // ─── Eliminar tarea ───────────────────────────────────────────────────────────
 export async function deleteTask(slug: string, taskId: string): Promise<void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
 

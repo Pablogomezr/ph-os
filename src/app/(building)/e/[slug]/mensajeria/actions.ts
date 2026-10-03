@@ -1,9 +1,9 @@
 "use server";
 
+import { requireAccesoPanel } from "@/lib/auth/helpers";
+
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
-import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { uploadAttachments } from "@/lib/blob-upload";
 import type { ComunicadoFormState } from "./types";
@@ -14,8 +14,7 @@ export async function createComunicado(
   _prev: ComunicadoFormState,
   formData: FormData
 ): Promise<ComunicadoFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const title       = (formData.get("title")       as string)?.trim();
   const body        = (formData.get("body")        as string)?.trim();
@@ -61,8 +60,7 @@ export async function updateComunicado(
   _prev: ComunicadoFormState,
   formData: FormData
 ): Promise<ComunicadoFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const id          = (formData.get("id")          as string)?.trim();
   const title       = (formData.get("title")       as string)?.trim();
@@ -118,8 +116,7 @@ export async function publishComunicado(
   slug: string,
   id: string
 ): Promise<void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const now = Math.floor(Date.now() / 1000);
   const db  = await getTenantDb(slug);
@@ -137,8 +134,7 @@ export async function unpublishComunicado(
   slug: string,
   id: string
 ): Promise<void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
 
@@ -155,8 +151,7 @@ export async function deleteComunicado(
   slug: string,
   id: string
 ): Promise<void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
   await db

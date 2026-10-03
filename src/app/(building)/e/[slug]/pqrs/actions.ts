@@ -1,9 +1,9 @@
 "use server";
 
+import { requireAccesoPanel } from "@/lib/auth/helpers";
+
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
-import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { uploadAttachments } from "@/lib/blob-upload";
 import type { PqrsFormState, PqrsResponseState } from "./types";
@@ -14,8 +14,7 @@ export async function createPqrs(
   _prev: PqrsFormState,
   formData: FormData
 ): Promise<PqrsFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const unitId      = (formData.get("unitId")      as string)?.trim();
   const type        = (formData.get("type")        as string)?.trim();
@@ -60,8 +59,7 @@ export async function respondPqrs(
   _prev: PqrsResponseState,
   formData: FormData
 ): Promise<PqrsResponseState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const pqrsId  = (formData.get("pqrsId")   as string)?.trim();
   const response = (formData.get("response") as string)?.trim();
@@ -91,8 +89,7 @@ export async function respondPqrs(
 
 // ─── Eliminar PQRS ────────────────────────────────────────────────────────────
 export async function deletePqrs(slug: string, pqrsId: string): Promise<void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
   await db.delete(tenantSchema.pqrs).where(eq(tenantSchema.pqrs.id, pqrsId));

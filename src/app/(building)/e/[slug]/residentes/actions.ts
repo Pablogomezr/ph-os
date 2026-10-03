@@ -1,9 +1,9 @@
 "use server";
 
+import { requireAccesoPanel } from "@/lib/auth/helpers";
+
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
-import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 export type ResidentFormState = { error?: string; success?: boolean } | null;
@@ -13,8 +13,7 @@ export async function createResident(
   _prev: ResidentFormState,
   formData: FormData
 ): Promise<ResidentFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const name    = (formData.get("name") as string)?.trim();
   const email   = (formData.get("email") as string)?.trim().toLowerCase();
@@ -64,8 +63,7 @@ export async function updateResident(
   _prev: ResidentFormState,
   formData: FormData
 ): Promise<ResidentFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const name    = (formData.get("name") as string)?.trim();
   const email   = (formData.get("email") as string)?.trim().toLowerCase();
@@ -107,8 +105,7 @@ export async function updateResident(
 }
 
 export async function deleteResident(slug: string, residentId: string) {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
   await db.delete(tenantSchema.users).where(eq(tenantSchema.users.id, residentId));
@@ -118,8 +115,7 @@ export async function deleteResident(slug: string, residentId: string) {
 }
 
 export async function toggleResidentActive(slug: string, residentId: string, active: boolean) {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
   await db

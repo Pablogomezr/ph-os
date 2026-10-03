@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { tieneAccesoPanel } from "@/lib/auth/helpers";
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import { desc, and, gte, lte } from "drizzle-orm";
 import ExcelJS from "exceljs";
@@ -38,6 +39,9 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { slug, format } = await params;
+  if (!(await tieneAccesoPanel(slug))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const searchParams = req.nextUrl.searchParams;
 
   // Rango de fechas (por mes: YYYY-MM)

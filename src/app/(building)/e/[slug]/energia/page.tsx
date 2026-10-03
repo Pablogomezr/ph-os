@@ -1,3 +1,4 @@
+import { requireAccesoPanelPagina } from "@/lib/auth/helpers";
 import { requireModule } from "../_components/ModuleGuard";
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import { desc } from "drizzle-orm";
@@ -10,6 +11,7 @@ export default async function EnergiaPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAccesoPanelPagina(slug);
   await requireModule(slug, "energia");
 
   const db = await getTenantDb(slug);

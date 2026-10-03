@@ -1,3 +1,4 @@
+import { requireAccesoPanelPagina } from "@/lib/auth/helpers";
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import UnidadesClient from "./UnidadesClient";
 
@@ -7,6 +8,7 @@ export default async function UnidadesPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAccesoPanelPagina(slug);
 
   let units: typeof tenantSchema.units.$inferSelect[] = [];
   try {

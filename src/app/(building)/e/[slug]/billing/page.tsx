@@ -1,3 +1,4 @@
+import { requireAccesoPanelPagina } from "@/lib/auth/helpers";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { getSuperadminDb, superadminSchema } from "@/lib/db/superadmin";
@@ -16,6 +17,8 @@ export default async function BillingPage({
   if (!userId) redirect("/sign-in");
 
   const { slug }          = await params;
+
+  await requireAccesoPanelPagina(slug);
   const { success, cancelled } = await searchParams;
 
   const db = getSuperadminDb();

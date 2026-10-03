@@ -27,8 +27,12 @@ Next.js 15 (App Router) + TypeScript + Tailwind v4 + shadcn/ui + Clerk + Turso (
 
 ### Auth Flow
 1. Clerk middleware protege todas las rutas excepto `/`, `/precios`, `/sign-in`, `/sign-up`
-2. Clerk Organizations = Edificios — cada edificio es una Org en Clerk
-3. `getUserRole(userId, buildingSlug)` retorna `admin | resident | technician`
+2. Las Organizations de Clerk **no se usan**: `buildings.clerk_org_id` es un placeholder.
+3. Panel `/e/[slug]`: `requireAccesoPanel(slug)` en cada Server Action,
+   `requireAccesoPanelPagina(slug)` en cada page.tsx y `tieneAccesoPanel(slug)` en
+   route handlers (`src/lib/auth/helpers.ts`). Entra el superadmin o un usuario
+   activo `admin`/`technician` de la tabla `users` de ESE edificio, por email
+   primario verificado. Regla pura y tests en `src/lib/auth/acceso.ts`.
 4. Superadmin: verificar `userId === process.env.SUPERADMIN_USER_ID`
 
 ### Directory Structure

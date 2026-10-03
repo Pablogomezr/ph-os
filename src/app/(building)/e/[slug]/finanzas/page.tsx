@@ -1,3 +1,4 @@
+import { requireAccesoPanelPagina } from "@/lib/auth/helpers";
 import { requireModule } from "../_components/ModuleGuard";
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import { getSuperadminDb } from "@/lib/db/superadmin";
@@ -12,6 +13,7 @@ export default async function FinanzasPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAccesoPanelPagina(slug);
   await requireModule(slug, "finanzas");
 
   const db  = await getTenantDb(slug);

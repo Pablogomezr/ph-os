@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { tieneAccesoPanel } from "@/lib/auth/helpers";
 import { getStripe } from "@/lib/stripe";
 import { getSuperadminDb, superadminSchema } from "@/lib/db/superadmin";
 import { eq } from "drizzle-orm";
@@ -20,6 +21,9 @@ export async function POST(req: NextRequest) {
 
   if (!slug) {
     return NextResponse.json({ error: "slug es requerido" }, { status: 400 });
+  }
+  if (!(await tieneAccesoPanel(slug))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const db = getSuperadminDb();

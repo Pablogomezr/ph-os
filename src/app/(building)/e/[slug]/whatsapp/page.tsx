@@ -1,3 +1,4 @@
+import { requireAccesoPanelPagina } from "@/lib/auth/helpers";
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import { desc, eq } from "drizzle-orm";
 import WhatsappClient from "./WhatsappClient";
@@ -9,6 +10,7 @@ export default async function WhatsappPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAccesoPanelPagina(slug);
   const db = await getTenantDb(slug);
 
   const [messages, units, users] = await Promise.all([
