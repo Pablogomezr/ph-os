@@ -13,7 +13,7 @@ export default async function FinanzasPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await requireAccesoPanelPagina(slug);
+  await requireAccesoPanelPagina(slug, "finanzas");
   await requireModule(slug, "finanzas");
 
   const db  = await getTenantDb(slug);

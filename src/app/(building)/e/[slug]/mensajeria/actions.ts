@@ -14,7 +14,7 @@ export async function createComunicado(
   _prev: ComunicadoFormState,
   formData: FormData
 ): Promise<ComunicadoFormState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "mensajeria");
 
   const title       = (formData.get("title")       as string)?.trim();
   const body        = (formData.get("body")        as string)?.trim();
@@ -60,7 +60,7 @@ export async function updateComunicado(
   _prev: ComunicadoFormState,
   formData: FormData
 ): Promise<ComunicadoFormState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "mensajeria");
 
   const id          = (formData.get("id")          as string)?.trim();
   const title       = (formData.get("title")       as string)?.trim();
@@ -116,7 +116,7 @@ export async function publishComunicado(
   slug: string,
   id: string
 ): Promise<void> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "mensajeria");
 
   const now = Math.floor(Date.now() / 1000);
   const db  = await getTenantDb(slug);
@@ -134,7 +134,7 @@ export async function unpublishComunicado(
   slug: string,
   id: string
 ): Promise<void> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "mensajeria");
 
   const db = await getTenantDb(slug);
 
@@ -151,7 +151,7 @@ export async function deleteComunicado(
   slug: string,
   id: string
 ): Promise<void> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "mensajeria");
 
   const db = await getTenantDb(slug);
   await db

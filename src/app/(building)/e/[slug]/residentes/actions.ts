@@ -13,7 +13,7 @@ export async function createResident(
   _prev: ResidentFormState,
   formData: FormData
 ): Promise<ResidentFormState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "residentes");
 
   const name    = (formData.get("name") as string)?.trim();
   const email   = (formData.get("email") as string)?.trim().toLowerCase();
@@ -63,7 +63,7 @@ export async function updateResident(
   _prev: ResidentFormState,
   formData: FormData
 ): Promise<ResidentFormState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "residentes");
 
   const name    = (formData.get("name") as string)?.trim();
   const email   = (formData.get("email") as string)?.trim().toLowerCase();
@@ -105,7 +105,7 @@ export async function updateResident(
 }
 
 export async function deleteResident(slug: string, residentId: string) {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "residentes");
 
   const db = await getTenantDb(slug);
   await db.delete(tenantSchema.users).where(eq(tenantSchema.users.id, residentId));
@@ -115,7 +115,7 @@ export async function deleteResident(slug: string, residentId: string) {
 }
 
 export async function toggleResidentActive(slug: string, residentId: string, active: boolean) {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "residentes");
 
   const db = await getTenantDb(slug);
   await db

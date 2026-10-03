@@ -20,7 +20,7 @@ export async function importBankStatement(
   _prev: BankImportState,
   formData: FormData
 ): Promise<BankImportState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "finanzas");
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -79,7 +79,7 @@ export async function resolvePendingPayment(
   paymentId: string,
   action: "verify" | "reject"
 ): Promise<void> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "finanzas");
 
   const db = await getTenantDb(slug);
   const payment = await db
@@ -129,7 +129,7 @@ export async function linkMovementToCharge(
   movementId: string,
   chargeId: string
 ): Promise<{ error?: string } | void> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "finanzas");
 
   const db = await getTenantDb(slug);
 
@@ -190,7 +190,7 @@ export async function applyMovementSplit(
   allocations: { chargeId: string; amount: number }[],
   remember = false
 ): Promise<{ error?: string } | void> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "finanzas");
 
   const cleaned = allocations.filter((a) => a.amount > 0);
   if (cleaned.length === 0) return { error: "Ingresa al menos un monto a aplicar." };
@@ -285,7 +285,7 @@ export async function applyPaymentSplit(
   paymentId: string,
   allocations: { chargeId: string; amount: number }[]
 ): Promise<{ error?: string } | void> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "finanzas");
 
   const cleaned = allocations.filter((a) => a.amount > 0);
   if (cleaned.length === 0) return { error: "Ingresa al menos un monto a aplicar." };

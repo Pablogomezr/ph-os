@@ -39,7 +39,7 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { slug, format } = await params;
-  if (!(await tieneAccesoPanel(slug))) {
+  if (!(await tieneAccesoPanel(slug, "contabilidad"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const searchParams = req.nextUrl.searchParams;

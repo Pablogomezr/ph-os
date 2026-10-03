@@ -47,7 +47,7 @@ export default async function BuildingLayout({
   // ── Control de acceso por edificio ───────────────────────────────────────────
   // Misma regla que cada Server Action (ver lib/auth/acceso.ts): superadmin, o
   // admin/technician activo en la tabla `users` de ESTE edificio.
-  const { decision, isSuperadmin, email } = await evaluarAccesoPanel(slug);
+  const { decision, isSuperadmin, email, secciones } = await evaluarAccesoPanel(slug);
 
   if (!decision.permitido) {
     // Propietarios, arrendatarios y observadores tienen su propio portal.
@@ -83,6 +83,7 @@ export default async function BuildingLayout({
         city={building.city}
         activeModules={activeModules}
         isSuperadmin={isSuperadmin}
+        secciones={secciones}
         unreadWhatsapp={unreadWhatsapp}
       />
       <main className="flex-1 overflow-auto">

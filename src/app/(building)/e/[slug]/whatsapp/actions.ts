@@ -15,7 +15,7 @@ export type SendReplyState = { error?: string; success?: boolean } | null;
 // Se llama desde el cliente al abrir el módulo (no desde el render de la página,
 // para no marcarlos como vistos solo por un prefetch al pasar el mouse sobre el link).
 export async function markSeen(slug: string): Promise<void> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "whatsapp");
 
   await markWhatsappSeen(slug);
   revalidatePath(`/e/${slug}`, "layout");
@@ -28,7 +28,7 @@ export async function sendReply(
   _prev: SendReplyState,
   formData: FormData
 ): Promise<SendReplyState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "whatsapp");
 
   const text = (formData.get("text") as string)?.trim();
   if (!text) return { error: "Escribe un mensaje." };

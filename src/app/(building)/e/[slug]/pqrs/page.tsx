@@ -11,7 +11,7 @@ export default async function PqrsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await requireAccesoPanelPagina(slug);
+  await requireAccesoPanelPagina(slug, "pqrs");
   await requireModule(slug, "pqrs");
 
   const db = await getTenantDb(slug);

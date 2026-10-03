@@ -32,7 +32,9 @@ Next.js 15 (App Router) + TypeScript + Tailwind v4 + shadcn/ui + Clerk + Turso (
    `requireAccesoPanelPagina(slug)` en cada page.tsx y `tieneAccesoPanel(slug)` en
    route handlers (`src/lib/auth/helpers.ts`). Entra el superadmin o un usuario
    activo `admin`/`technician` de la tabla `users` de ESE edificio, por email
-   primario verificado. Regla pura y tests en `src/lib/auth/acceso.ts`.
+   primario verificado. Cada llamada nombra su sección (la carpeta de
+   `/e/[slug]`): el `technician` solo usa `mantenimiento` y `energia`; el
+   `admin`, todas. Regla pura y tests en `src/lib/auth/acceso.ts`.
 4. Superadmin: verificar `userId === process.env.SUPERADMIN_USER_ID`
 
 ### Directory Structure

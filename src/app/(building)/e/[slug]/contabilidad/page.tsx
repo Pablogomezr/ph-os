@@ -9,7 +9,7 @@ export default async function ContabilidadPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await requireAccesoPanelPagina(slug);
+  await requireAccesoPanelPagina(slug, "contabilidad");
   await requireModule(slug, "contabilidad");
 
   const db = await getTenantDb(slug);

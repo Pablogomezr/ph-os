@@ -20,7 +20,7 @@ export async function createCharge(
   _prev: ChargeFormState,
   formData: FormData
 ): Promise<ChargeFormState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "finanzas");
 
   const unitId      = (formData.get("unitId")      as string)?.trim();
   const concept     = (formData.get("concept")     as string)?.trim();
@@ -66,7 +66,7 @@ export async function createMassCharges(
   _prev: MassChargeFormState,
   formData: FormData
 ): Promise<MassChargeFormState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "finanzas");
 
   const concept     = (formData.get("concept")     as string)?.trim();
   const description = (formData.get("description") as string)?.trim() || null;
@@ -123,7 +123,7 @@ export async function recordPayment(
   _prev: PaymentFormState,
   formData: FormData
 ): Promise<PaymentFormState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "finanzas");
 
   const chargeId  = (formData.get("chargeId")  as string)?.trim();
   const unitId    = (formData.get("unitId")    as string)?.trim();
@@ -197,7 +197,7 @@ export async function updatePayment(
   _prev: PaymentFormState,
   formData: FormData
 ): Promise<PaymentFormState> {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "finanzas");
 
   const amountRaw   =  formData.get("amount")      as string;
   const method      = (formData.get("method")      as string) || "transfer";
@@ -254,7 +254,7 @@ export async function updatePayment(
 
 // ─── Eliminar pago ────────────────────────────────────────────────────────────
 export async function deletePayment(slug: string, paymentId: string) {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "finanzas");
 
   const db = await getTenantDb(slug);
 
@@ -274,7 +274,7 @@ export async function deletePayment(slug: string, paymentId: string) {
 
 // ─── Eliminar cargo ───────────────────────────────────────────────────────────
 export async function deleteCharge(slug: string, chargeId: string) {
-  const { userId } = await requireAccesoPanel(slug);
+  const { userId } = await requireAccesoPanel(slug, "finanzas");
 
   const db = await getTenantDb(slug);
 

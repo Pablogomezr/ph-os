@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   if (!slug) {
     return NextResponse.json({ error: "slug es requerido" }, { status: 400 });
   }
-  if (!(await tieneAccesoPanel(slug))) {
+  if (!(await tieneAccesoPanel(slug, "billing"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
