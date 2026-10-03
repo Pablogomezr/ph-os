@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
     return ["e", "r", "op", "api/export"].map((prefijo) => ({
       source:      `/${prefijo}/edifcio-camacol/:path*`,
       destination: `/${prefijo}/edificio-camacol/:path*`,
-      permanent:   false,
+      permanent:   true,
     }));
   },
 

@@ -15,8 +15,6 @@ const isPublicRoute = createRouteMatcher([
   // propio handler: firma HMAC-SHA256 X-Hub-Signature-256 sobre el cuerpo crudo
   // (ver lib/whatsapp/signature.ts). El VERIFY_TOKEN solo cubre el handshake GET.
   "/api/whatsapp/webhook",
-  // TEMPORAL — se autentica con MIGRATION_SECRET_RENOMBRAR. Borrar tras aplicar.
-  "/api/admin/renombrar-edificio",
   // Portal residentes: auth manejada en layout + lib/resident-auth
   // No se incluye aquí — la protección de Clerk continúa activa
 ]);
