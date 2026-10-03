@@ -1,6 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // ─── Redirects ──────────────────────────────────────────────────────────────
+  // Camacol se creó con el slug mal escrito "edifcio-camacol". Los enlaces ya
+  // repartidos a residentes y en plantillas siguen funcionando por aquí.
+  async redirects() {
+    return ["e", "r", "op", "api/export"].map((prefijo) => ({
+      source:      `/${prefijo}/edifcio-camacol/:path*`,
+      destination: `/${prefijo}/edificio-camacol/:path*`,
+      permanent:   true,
+    }));
+  },
+
   // ─── Headers ────────────────────────────────────────────────────────────────
   async headers() {
     return [
