@@ -1,9 +1,9 @@
 "use server";
 
+import { requireAccesoPanel } from "@/lib/auth/helpers";
+
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
-import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 export type ReadingFormState = { error?: string; success?: boolean } | null;
@@ -15,8 +15,7 @@ export async function createReading(
   _prev: ReadingFormState,
   formData: FormData
 ): Promise<ReadingFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const unitId          = (formData.get("unitId")          as string)?.trim();
   const meterNumber     = (formData.get("meterNumber")     as string)?.trim() || null;
@@ -66,8 +65,7 @@ export async function generateChargeFromReading(
   slug: string,
   readingId: string
 ): Promise<{ error?: string }> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
 
@@ -117,8 +115,7 @@ export async function generateChargeFromReading(
 
 // ─── Eliminar lectura (solo si no facturada) ──────────────────────────────────
 export async function deleteReading(slug: string, readingId: string) {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
 

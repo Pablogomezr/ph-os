@@ -1,12 +1,12 @@
 "use server";
 
+import { requireAccesoPanel } from "@/lib/auth/helpers";
+
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
-import { auth } from "@clerk/nextjs/server";
 import { eq, inArray, sql, and } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { parseBankStatement } from "@/lib/bank-import";
-import { recalcChargeStatus } from "./actions";
+import { recalcChargeStatus } from "./recalc";
 
 function formatCOP(n: number) {
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
@@ -20,8 +20,7 @@ export async function importBankStatement(
   _prev: BankImportState,
   formData: FormData
 ): Promise<BankImportState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -80,8 +79,7 @@ export async function resolvePendingPayment(
   paymentId: string,
   action: "verify" | "reject"
 ): Promise<void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
   const payment = await db
@@ -131,8 +129,7 @@ export async function linkMovementToCharge(
   movementId: string,
   chargeId: string
 ): Promise<{ error?: string } | void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
 
@@ -193,8 +190,7 @@ export async function applyMovementSplit(
   allocations: { chargeId: string; amount: number }[],
   remember = false
 ): Promise<{ error?: string } | void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const cleaned = allocations.filter((a) => a.amount > 0);
   if (cleaned.length === 0) return { error: "Ingresa al menos un monto a aplicar." };
@@ -289,8 +285,7 @@ export async function applyPaymentSplit(
   paymentId: string,
   allocations: { chargeId: string; amount: number }[]
 ): Promise<{ error?: string } | void> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const cleaned = allocations.filter((a) => a.amount > 0);
   if (cleaned.length === 0) return { error: "Ingresa al menos un monto a aplicar." };

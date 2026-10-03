@@ -1,9 +1,9 @@
 "use server";
 
+import { requireAccesoPanel } from "@/lib/auth/helpers";
+
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
-import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 export type OperadorFormState = { error?: string; success?: boolean } | null;
@@ -13,8 +13,7 @@ export async function createOperador(
   _prev: OperadorFormState,
   formData: FormData
 ): Promise<OperadorFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const name  = (formData.get("name")  as string)?.trim();
   const email = (formData.get("email") as string)?.trim().toLowerCase();
@@ -54,8 +53,7 @@ export async function createOperador(
 }
 
 export async function deleteOperador(slug: string, operadorId: string) {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
   await db.delete(tenantSchema.users).where(eq(tenantSchema.users.id, operadorId));
@@ -63,8 +61,7 @@ export async function deleteOperador(slug: string, operadorId: string) {
 }
 
 export async function toggleOperadorActive(slug: string, id: string, active: boolean) {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
   await db

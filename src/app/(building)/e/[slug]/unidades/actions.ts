@@ -1,9 +1,9 @@
 "use server";
 
+import { requireAccesoPanel } from "@/lib/auth/helpers";
+
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
-import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 export type UnitFormState = { error?: string; success?: boolean } | null;
@@ -18,8 +18,7 @@ export async function createUnit(
   _prev: UnitFormState,
   formData: FormData
 ): Promise<UnitFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const number      = (formData.get("number") as string)?.trim();
   const type        = (formData.get("type") as string) || "apartment";
@@ -78,8 +77,7 @@ export async function updateUnit(
   _prev: UnitFormState,
   formData: FormData
 ): Promise<UnitFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const number      = (formData.get("number") as string)?.trim();
   const type        = (formData.get("type") as string) || "apartment";
@@ -132,8 +130,7 @@ export async function updateUnit(
 }
 
 export async function deleteUnit(slug: string, unitId: string) {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
   await db.delete(tenantSchema.units).where(eq(tenantSchema.units.id, unitId));

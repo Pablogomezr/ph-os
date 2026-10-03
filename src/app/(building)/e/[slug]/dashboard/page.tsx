@@ -1,3 +1,4 @@
+import { requireAccesoPanelPagina } from "@/lib/auth/helpers";
 import { getSuperadminDb, superadminSchema } from "@/lib/db/superadmin";
 import { getTenantDb } from "@/lib/db/tenant";
 import { eq } from "drizzle-orm";
@@ -29,6 +30,7 @@ export default async function BuildingDashboard({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAccesoPanelPagina(slug);
   const { userId } = await auth();
 
   // Datos del edificio

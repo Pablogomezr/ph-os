@@ -1,42 +1,16 @@
 "use server";
 
+import { requireAccesoPanel } from "@/lib/auth/helpers";
+
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
-import { auth } from "@clerk/nextjs/server";
 import { eq, sql } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { uploadAttachments } from "@/lib/blob-upload";
+import { recalcChargeStatus } from "./recalc";
 
 export type ChargeFormState     = { error?: string; success?: boolean } | null;
 export type MassChargeFormState = { error?: string; success?: boolean; count?: number } | null;
 export type PaymentFormState    = { error?: string; success?: boolean } | null;
-
-// Recalcula y guarda el estado del cargo (paid/partial/pending) según la
-// suma actual de sus pagos — usado tras editar o eliminar un pago.
-export async function recalcChargeStatus(
-  db: Awaited<ReturnType<typeof getTenantDb>>,
-  chargeId: string
-): Promise<void> {
-  const charge = await db
-    .select({ amount: tenantSchema.charges.amount })
-    .from(tenantSchema.charges)
-    .where(eq(tenantSchema.charges.id, chargeId))
-    .get();
-  if (!charge) return;
-
-  const totalResult = await db
-    .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
-    .from(tenantSchema.payments)
-    .where(eq(tenantSchema.payments.chargeId, chargeId))
-    .get();
-  const totalPaid = totalResult?.total ?? 0;
-
-  const status = totalPaid <= 0 ? "pending" : totalPaid >= charge.amount - 0.01 ? "paid" : "partial";
-  await db
-    .update(tenantSchema.charges)
-    .set({ status, updatedAt: Math.floor(Date.now() / 1000) })
-    .where(eq(tenantSchema.charges.id, chargeId));
-}
 
 const VALID_CONCEPTS = ["ordinary", "extraordinary", "energy", "water", "audit", "other"];
 
@@ -46,8 +20,7 @@ export async function createCharge(
   _prev: ChargeFormState,
   formData: FormData
 ): Promise<ChargeFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const unitId      = (formData.get("unitId")      as string)?.trim();
   const concept     = (formData.get("concept")     as string)?.trim();
@@ -93,8 +66,7 @@ export async function createMassCharges(
   _prev: MassChargeFormState,
   formData: FormData
 ): Promise<MassChargeFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const concept     = (formData.get("concept")     as string)?.trim();
   const description = (formData.get("description") as string)?.trim() || null;
@@ -151,8 +123,7 @@ export async function recordPayment(
   _prev: PaymentFormState,
   formData: FormData
 ): Promise<PaymentFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const chargeId  = (formData.get("chargeId")  as string)?.trim();
   const unitId    = (formData.get("unitId")    as string)?.trim();
@@ -226,8 +197,7 @@ export async function updatePayment(
   _prev: PaymentFormState,
   formData: FormData
 ): Promise<PaymentFormState> {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const amountRaw   =  formData.get("amount")      as string;
   const method      = (formData.get("method")      as string) || "transfer";
@@ -284,8 +254,7 @@ export async function updatePayment(
 
 // ─── Eliminar pago ────────────────────────────────────────────────────────────
 export async function deletePayment(slug: string, paymentId: string) {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
 
@@ -305,8 +274,7 @@ export async function deletePayment(slug: string, paymentId: string) {
 
 // ─── Eliminar cargo ───────────────────────────────────────────────────────────
 export async function deleteCharge(slug: string, chargeId: string) {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  const { userId } = await requireAccesoPanel(slug);
 
   const db = await getTenantDb(slug);
 

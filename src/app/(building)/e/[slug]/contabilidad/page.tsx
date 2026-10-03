@@ -1,3 +1,4 @@
+import { requireAccesoPanelPagina } from "@/lib/auth/helpers";
 import { requireModule } from "../_components/ModuleGuard";
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import ContabilidadClient, { type ContabilidadSummary } from "./ContabilidadClient";
@@ -8,6 +9,7 @@ export default async function ContabilidadPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAccesoPanelPagina(slug);
   await requireModule(slug, "contabilidad");
 
   const db = await getTenantDb(slug);

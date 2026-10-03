@@ -1,3 +1,4 @@
+import { requireAccesoPanelPagina } from "@/lib/auth/helpers";
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import { eq } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
@@ -10,6 +11,7 @@ export default async function OperadoresPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAccesoPanelPagina(slug);
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 

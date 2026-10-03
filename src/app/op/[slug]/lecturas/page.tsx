@@ -2,7 +2,7 @@ import { requireOperatorContext } from "@/lib/operator-auth";
 import { getTenantDb, tenantSchema } from "@/lib/db/tenant";
 import { getSuperadminDb, superadminSchema } from "@/lib/db/superadmin";
 import { eq } from "drizzle-orm";
-import { getEnergyRate, getLastReadings, getTodayReadingUnitIds } from "./actions";
+import { getEnergyRate, getLastReadings, getTodayReadingUnitIds } from "./queries";
 import OperatorLecturasClient from "./OperatorLecturasClient";
 
 export default async function OperatorLecturasPage({

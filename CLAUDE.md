@@ -91,9 +91,14 @@ Van por **Server Actions** (12 archivos `actions.ts`), no por API routes. Las
 ### Los dos sistemas de roles
 Esto confunde. Son dos cosas distintas y no se mezclan:
 
-1. **Rol de organización de Clerk** → `getUserRole(slug)` en
-   `src/lib/auth/helpers.ts`. Devuelve `superadmin | admin | technician |
-   resident`. Controla el acceso al panel de administración.
+1. **Acceso al panel `/e/[slug]`** → `requireAccesoPanel(slug)` en cada Server
+   Action, `requireAccesoPanelPagina(slug)` en cada page.tsx y
+   `tieneAccesoPanel(slug)` en route handlers (`src/lib/auth/helpers.ts`). Entra
+   el superadmin o un usuario **activo** `admin`/`technician` de la tabla `users`
+   de **ese** edificio, por email primario **verificado** de Clerk. Regla pura y
+   tests en `src/lib/auth/acceso.ts`. Las Organizations de Clerk **no se usan**:
+   `buildings.clerk_org_id` es un placeholder. El layout no basta: una Server
+   Action o un page segment se piden sin pasar por él.
 2. **Rol del residente en la base del edificio** → columna `users.role`.
    Valores: `resident` (Propietario), `tenant` (Arrendatario), `observer`
    (Observador, solo lectura), `admin`, `technician`. Se consulta con
@@ -162,9 +167,6 @@ No la arregles de paso; está anotada para que no te sorprenda.
 - **`audit_logs` no se escribe nunca.** La tabla existe, el helper `logAction`
   que mencionaba la versión anterior de este archivo **no existe**, y ninguna
   mutación registra nada. Sigue siendo lo correcto por hacer.
-- **`requireRole()` está definido pero no se usa en ninguna parte.** Además su
-  jerarquía no incluye `observer`: un rol fuera de la lista da `indexOf === -1`
-  y **pasa cualquier verificación**. Revisar antes de empezar a usarlo.
 - **Drift de esquema.** Se usó `db:push` en vez de `generate` + `migrate` al
   menos dos veces: `whatsapp_phone_id` en la central y `payment_references` en
   el inquilino. Por eso `db:migrate:central` hoy fallaría.
